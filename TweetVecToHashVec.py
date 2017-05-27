@@ -1,3 +1,21 @@
+import argparse
+import getpass
+import time
+import numpy
+import SkipGram
+import Database
+
+# The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
+
+
+# parse arguements
+# note, default database settings can be found in the database file.
+parser = argparse.ArgumentParser(prog='TextToInts',
+                                 usage='python TextToInts -i formatted_tweets -k dictionary -o output_table -d dbname -c host -u user -p',
+                                 description="\n\n This program TRUNCATES the output table 'formatted_tweets' at the beginning by default.")
+
+
+
 # 2 columns - hashtag id and embedding
 
 parser.add_argument('-o', '--output', action='store', dest='output', default=Database.hashtag_embeddings['table_name'],
