@@ -266,7 +266,7 @@ with graph.as_default():
     init = tf.global_variables_initializer()
 
 # Step 5: Begin training.
-num_steps = 100001
+num_steps = 10001
 
 
 with tf.Session(graph=graph) as session:
@@ -336,7 +336,7 @@ try:
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
     plot_only = 500
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
-    labels = [reverse_dictionary[i] for i in xrange(plot_only)]
+    labels = [reverse_dictionary[i].decode('UTF-8', 'replace').encode('ascii', 'replace') for i in xrange(plot_only)]
     plot_with_labels(low_dim_embs, labels)
 
 except ImportError:
