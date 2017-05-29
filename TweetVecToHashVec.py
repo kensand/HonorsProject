@@ -109,4 +109,21 @@ for row in incur:
             hash_embeddings[result[0]] = [x+y for x,y in zip(hash_embeddings[result[0]], embedding)]
         else:
             hash_embeddings[result[0]] = embedding
+
+count = 0
+start = time.localtime()
+for key, value in hash_embeddings.items():
+    out_term = """INSERT INTO """ + args.output + """ (""" + args.hashtag_id_column + """, """ + args.hashtag_embedding_column + """) VALUES (%s, %s)"""
+    outcur.execute(out_term, [key, value])
+    if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
+        fin = ((time.mktime(time.localtime()) - time.mktime(start)) / count) * len(hash_embeddings)
+        fin += time.mktime(start)
+        if args.commit == True:
+            outcur.execute("""COMMIT""")
+        print str(count) + '/' + str(len(hash_embeddings)) + ". Est. completion time: " + time.strftime(
+            "%b %d %Y %H:%M:%S", time.localtime(fin))
+
+
+
+
 print str(hash_embeddings)

@@ -4,6 +4,7 @@ import time
 import numpy
 import SkipGram
 import Database
+import util
 
 # The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
 
@@ -110,7 +111,7 @@ for row in incur:
             embedding = embedding[0]
             s = [x + y for x,y in zip(embedding, s)]
     out_term = """INSERT INTO """ + args.output + """ (""" + args.tweet_id_column + """, """ + args.tweet_embedding_column + """) VALUES (%s, %s)"""
-    outcur.execute(out_term, [id, s])
+    outcur.execute(out_term, [id, util.unitize(s)])
     if incur.rownumber % 1000 == 1:  # int(incur.rowcount / 100) == 0:
         fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
         fin += time.mktime(start)
@@ -118,3 +119,4 @@ for row in incur:
             outcur.execute("""COMMIT""")
         print str(incur.rownumber) + '/' + str(incur.rowcount) + ". Est. completion time: " + time.strftime(
             "%b %d %Y %H:%M:%S", time.localtime(fin))
+outcur.execute("""COMMIT""")

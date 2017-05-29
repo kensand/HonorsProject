@@ -9,7 +9,7 @@ Password = 'honorsproject2017'
 
 tweets = {'table_name': "tweets", 'tweet_id_column': 'id',  'text_column': 'text'}
 formatted_tweets = {'table_name': 'formatted_tweets', 'tweet_id_column': 'id', 'tokens_column': 'tokens'}
-dictionary = {'table_name': 'dictionary', 'default_size': str(5000), 'word_id_column': 'word_id', 'word_column': 'word',
+dictionary = {'table_name': 'dictionary', 'default_size': str(50000), 'word_id_column': 'word_id', 'word_column': 'word',
               'use_column': 'use'}
 int_tweets = {'table_name': 'int_tweets', 'id_column': 'id', 'int_array_column': 'int_array'}
 word_embeddings = {'table_name': 'word_embeddings', 'embedding_size': str(128), 'word_id_column': 'word_id', 'word_embedding_column': 'word_embedding'}
