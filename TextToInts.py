@@ -113,7 +113,7 @@ for row in incur:
     if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
         fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
         fin += time.mktime(start)
-        outcur.execute("""COMMIT""")
+        #outcur.execute("""COMMIT""")
         print str(count) + '/' + str(incur.rowcount) + " Est. completion time: " + time.strftime(
             "%b %d %Y %H:%M:%S", time.localtime(fin))
 
