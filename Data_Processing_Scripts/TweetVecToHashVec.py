@@ -1,9 +1,9 @@
 import argparse
 import getpass
 import time
-import numpy
-import SkipGram
-import Database
+
+from Library import Database
+from Library import TweetVecToHashVec
 
 # The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
 
@@ -84,46 +84,13 @@ if args.password:
 else:
     conn = Database.get_Conn(user=args.user, password=Database.Password, host=args.host, dbname=args.dbname)
 
-
-
-incur = conn.cursor()
-search = conn.cursor()
-outcur = conn.cursor()
-if args.append == False:
-    outcur.execute("""TRUNCATE """ + args.output)
-    outcur.execute("""COMMIT""")
-    print "Truncated " + args.output
-
-select = """SELECT """ + args.in_tweet_id_column + ', ' + args.in_tweet_embedding_column + """ FROM """ + args.input_tweet_embeddings
-if args.where != False:
-    select += """ WHERE """ + str(args.where)
-incur.execute(select)
-hash_embeddings={}
-for row in incur:
-    id = row[0]
-    embedding = row[1]
-    s = """SELECT """ + args.in_hashtag_column + """ FROM """ + args.input_hashtags + """ WHERE """ + args.in_hashtag_tweets_id_column + """=""" + str(id)
-    search.execute(s)
-    for result in search:
-        if result[0] in hash_embeddings:
-            hash_embeddings[result[0]] = [x+y for x,y in zip(hash_embeddings[result[0]], embedding)]
-        else:
-            hash_embeddings[result[0]] = embedding
-
-count = 0
-start = time.localtime()
-for key, value in hash_embeddings.items():
-    out_term = """INSERT INTO """ + args.output + """ (""" + args.hashtag_id_column + """, """ + args.hashtag_embedding_column + """) VALUES (%s, %s)"""
-    outcur.execute(out_term, [key, value])
-    if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
-        fin = ((time.mktime(time.localtime()) - time.mktime(start)) / count) * len(hash_embeddings)
-        fin += time.mktime(start)
-        if args.commit == True:
-            outcur.execute("""COMMIT""")
-        print str(count) + '/' + str(len(hash_embeddings)) + ". Est. completion time: " + time.strftime(
-            "%b %d %Y %H:%M:%S", time.localtime(fin))
-
-
-
-
-print str(hash_embeddings)
+#call the function
+TweetVecToHashVec.tweet_vec_to_hash_vec(conn=conn, output=args.output, hashtag_id_col=args.hashtag_id_column,
+                          hashtag_embedding_col=args.hashtag_embedding_column,
+                          input_hashtags=args.input_hashtags,
+                          in_hashtag_tweets_id_col=args.in_hashtag_tweets_id_column,
+                          in_hashtag_col=args.in_hashtag_column,
+                          input_tweet_embeddings=args.input_tweet_embeddings,
+                          in_tweet_id_col=args.in_tweet_id_column,
+                          in_tweet_embedding_col=args.in_tweet_embedding_column,
+                          append=False, where=False, commit=False)

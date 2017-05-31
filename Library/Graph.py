@@ -1,12 +1,9 @@
-
-import tensorflow as tf
-from sklearn.cluster import KMeans
 from pyclustering.cluster.xmeans import xmeans
+
 import Database
+
 # get the graph
-
-
-clustersize =128
+clustersize = 128
 
 h_graph = []
 node_ids = {}
@@ -27,13 +24,14 @@ x.process()
 c = x.get_clusters()
 #c.fit(graph)
 for i in range(len(c)):
-    print "Cluster " + str(i)
+
     members = []
     #print c[i]
     for index in c[i]:
         if index in node_ids:
             search.execute("""SELECT hashtag from hashtags WHERE id = %s""", [int(node_ids[index])])
             members.append(search.fetchone()[0])
+    print "Cluster " + str(i) + ', size = ' + str(len(members))
     print ", ".join(members)
 
 

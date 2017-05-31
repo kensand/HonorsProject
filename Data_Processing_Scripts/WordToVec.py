@@ -1,9 +1,10 @@
 import argparse
 import getpass
 import time
+
 import numpy
-import SkipGram
-import Database
+
+from Library import Database
 
 # The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
 
@@ -199,7 +200,7 @@ import tensorflow as tf
 import math
 
 #get the dictionary
-dictionary = Database.get_dictionary(cursor=conn.cursor(), table=args.dict, word_column=args.dict_word_column, word_id_column=args.dict_word_id_column  )
+dictionary = Database.get_dictionary(cursor=conn.cursor(), table=args.dict, word_column=args.dict_word_column, word_id_column=args.dict_word_id_column)
 reverse_dictionary = {x: y for y,x in dictionary.items()}
 vocabulary_size = len(dictionary.items())
 
@@ -266,7 +267,7 @@ with graph.as_default():
     init = tf.global_variables_initializer()
 
 # Step 5: Begin training.
-num_steps = 10001
+num_steps = 800001
 
 
 with tf.Session(graph=graph) as session:
@@ -313,7 +314,7 @@ with tf.Session(graph=graph) as session:
 # Step 6: Visualize the embeddings.
 
 
-def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
+def plot_with_labels(low_dim_embs, labels, filename='word_embeddings.png'):
     assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
     plt.figure(figsize=(18, 18))  # in inches
     for i, label in enumerate(labels):

@@ -1,10 +1,7 @@
 import argparse
 import getpass
-import time
-import numpy
-import SkipGram
-import Database
-import util
+
+from Library import Database, WordVecToTweetVec
 
 # The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
 
@@ -35,8 +32,6 @@ parser.add_argument('-iic', '--input_word_id_column', action='store', dest='in_w
 parser.add_argument('-iec', '--input_embeddings_column', action='store', dest='in_word_embedding_column',
                     default=Database.word_embeddings['word_embedding_column'],
                     help='The name of the input column holding the tweet tokens.')
-
-
 
 # output options
 
@@ -70,7 +65,6 @@ parser.add_argument('-c', '--host', action='store', dest='host', default=Databas
 parser.add_argument('-d', '--dbname', action='store', dest='dbname', default=Database.Dbname,
                     help='The database name at the host.')
 
-
 # create the connection
 args = parser.parse_args()
 conn = False
@@ -80,43 +74,11 @@ if args.password:
 else:
     conn = Database.get_Conn(user=args.user, password=Database.Password, host=args.host, dbname=args.dbname)
 
-
-
-incur = conn.cursor()
-search = conn.cursor()
-outcur = conn.cursor()
-if args.append == False:
-    outcur.execute("""TRUNCATE """ + args.output)
-    outcur.execute("""COMMIT""")
-    print "Truncated " + args.output
-
-select = """SELECT """ + args.ints_id_column + ', ' + args.ints_array_column + """ FROM """ + args.ints
-if args.where != False:
-    select += """ WHERE """ + str(args.where)
-incur.execute(select)
-
-tweet_embeddings = {}
-start = time.localtime()
-#for every tweet_id and vector that we have in the tweet vecs,
-for row in incur:
-    #create the embedding of the tweet
-    id = row[0]
-    arr = row[1]
-    s = [0] * 128 #TODO get the max length needed first
-    for word in arr:
-        searchterm = """SELECT """ + args.in_word_embedding_column + """ FROM """ + args.input_word_embeddings + """ WHERE """ + args.in_word_id_column + "=" + str(word)
-        search.execute(searchterm)
-        embedding = search.fetchone()
-        if embedding != None:
-            embedding = embedding[0]
-            s = [x + y for x,y in zip(embedding, s)]
-    out_term = """INSERT INTO """ + args.output + """ (""" + args.tweet_id_column + """, """ + args.tweet_embedding_column + """) VALUES (%s, %s)"""
-    outcur.execute(out_term, [id, util.unitize(s)])
-    if incur.rownumber % 1000 == 1:  # int(incur.rowcount / 100) == 0:
-        fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
-        fin += time.mktime(start)
-        if args.commit == True:
-            outcur.execute("""COMMIT""")
-        print str(incur.rownumber) + '/' + str(incur.rowcount) + ". Est. completion time: " + time.strftime(
-            "%b %d %Y %H:%M:%S", time.localtime(fin))
-outcur.execute("""COMMIT""")
+#call the function
+WordVecToTweetVec.word_vec_to_tweet_vec(conn=conn, output=args.output, tweet_id_col=args.tweet_id_column,
+                                        tweet_embedding_col=args.tweet_embedding_column, input_tweets=args.ints,
+                                        in_tweets_id_col=args.ints_id_column, in_tweets_arr_col=args.ints_array_column,
+                                        input_word_embeddings=args.input_word_embeddings,
+                                        in_word_id_col=args.in_word_id_column,
+                                        in_word_embedding_col=args.in_word_embedding_column, append=args.append,
+                                        where=args.where, commit=args.commit)

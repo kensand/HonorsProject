@@ -1,8 +1,10 @@
-import Database
 import argparse
 import collections
-from scipy import spatial
 import getpass
+
+from scipy import spatial
+
+from Library import Database
 
 parser = argparse.ArgumentParser(prog='FormatTweets',
                                  usage='python FormatTweets -i tweets -o formatted tweets -u user -p -h localhost -d postgres',

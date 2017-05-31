@@ -1,12 +1,13 @@
 import psycopg2
 
-# database information
-
+# default database information
 Dbname = 'postgres'
 User = 'kenny'
 Host = 'localhost'
 Password = 'honorsproject2017'
 
+
+# default table information
 tweets = {'table_name': "tweets", 'tweet_id_column': 'id',  'text_column': 'text'}
 formatted_tweets = {'table_name': 'formatted_tweets', 'tweet_id_column': 'id', 'tokens_column': 'tokens'}
 dictionary = {'table_name': 'dictionary', 'default_size': str(50000), 'word_id_column': 'word_id', 'word_column': 'word',
@@ -30,11 +31,14 @@ def get_Conn(dbname=Dbname, user=User, host=Host, password=Password):
     return conn
 
 
-def get_Cur():
-    return get_Conn().cursor()
+#function to return a cursor, whether from the default database, or with a given connection.
+def get_Cur(conn=False):
+    if conn == False:
+        return get_Conn().cursor()
+    return conn.cursor()
 
 
-def get_dictionary(table, word_id_column, word_column, cursor):
+def get_dictionary(table=dictionary['table_name'], word_id_column=dictionary['word_id_column'], word_column=dictionary['word_column'], cursor=get_Cur()):
     d = dict()
     cursor.execute("""SELECT """ + word_id_column + ", " + word_column + " FROM " + table)
     for row in cursor:

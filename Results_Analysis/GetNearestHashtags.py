@@ -1,8 +1,12 @@
-import Database
+from Library import Database
+import collections
+
+from scipy import spatial
 import collections
 
 from scipy import spatial
 
+from Library import Database
 
 cur = Database.get_Cur()
 cur.execute("""SELECT hashtag_id, hashtag_embedding FROM hashtag_embeddings""")
@@ -29,6 +33,5 @@ for id, embedding in l:
         #out +=  str(cur2.fetchone()[0]) + ', '
         print '--'
         print str(cur2.fetchone()[0])
-        print ''
 
     #print rel.most_common(10)
