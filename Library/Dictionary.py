@@ -44,17 +44,24 @@ def create_dictionary(conn=Database.get_Conn(), input=Database.formatted_tweets[
     ret = []
     # store all of the dictionary in the database
     count = 0
+    buff = []
     for row in outlist:
         word, use = row
-        outcur.execute(
-            """INSERT INTO """ + output + """ (""" + out_id_col + ", " + out_word_col + ", " + out_use_col + ") VALUES (%s, %s, %s)",
-            [count, word, use])
+        buff.append([count, word, use])
+        if len(buff) > Database.batch_size:
+            insert = """INSERT INTO """ + output + """ (""" + out_id_col + ", " + out_word_col + ", " + out_use_col + ") VALUES " + ','.join(outcur.mogrify('(%s, %s, %s)', x) for x in buff)
+            outcur.execute(insert)
+            del buff
+            buff = []
         ret.append([count, word, use])
         count += 1
-        if count % 1000 == 1:
+        if count % 10000 == 1:
             if commit:
                 outcur.execute("""COMMIT""")
-            print str(count) + '/' + str(total)
+            print str(count) + '/' + str(len(outlist))
+    if len(buff) > 0:
+        insert = """INSERT INTO """ + output + """ (""" + out_id_col + ", " + out_word_col + ", " + out_use_col + ") VALUES " + ','.join(outcur.mogrify('(%s, %s, %s)', x) for x in buff)
+        outcur.execute(insert)
     outcur.execute("""COMMIT""")
 
     return ret

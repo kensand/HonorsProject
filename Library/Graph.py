@@ -1,6 +1,7 @@
 from pyclustering.cluster.xmeans import xmeans
 
 import Database
+from scipy import spatial
 
 # get the graph
 clustersize = 128
@@ -17,9 +18,29 @@ for row in cur:
     h_graph.append(row[1])
     node_ids[count] = row[0]
     count += 1
+import time
+graph = []
+start = time.localtime()
+for i in range(10):#len(h_graph)):
+    tmp = []
+    for j in range(len(h_graph)):
+        d = 1 - spatial.distance.cosine(h_graph[i], h_graph[j])
+        if i == j:
+            d = 1
+        tmp.append(d)
+    #print str(i) + '/' + str(len(h_graph))
+    graph.append(tmp)
+    del tmp
+    if i % 100 == 10:  # int(incur.rowcount / 100) == 0:
+        fin = ((time.mktime(time.localtime()) - time.mktime(start)) / i) * len(h_graph)
+        fin += time.mktime(start)
 
+        print str(i) + '/' + str(len(h_graph)) + ". Est. completion time: " + time.strftime(
+            "%b %d %Y %H:%M:%S", time.localtime(fin))
 start = [[0] * 128]
-x = xmeans(data=h_graph, initial_centers=start)
+for i in graph:
+    print len(i)
+x = xmeans(data=graph, initial_centers=start)
 x.process()
 c = x.get_clusters()
 #c.fit(graph)

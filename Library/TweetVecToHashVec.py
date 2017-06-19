@@ -8,9 +8,10 @@ from Library import Util, Database
 def tweet_vec_to_hash_vec(conn=Database.get_Conn(), output=Database.hashtag_embeddings['table_name'],
                           hashtag_id_col=Database.hashtag_embeddings['hashtag_id_column'],
                           hashtag_embedding_col=Database.hashtag_embeddings['hashtag_embedding_column'],
-                          input_hashtags=Database.hashtags['table_name'],
-                          in_hashtag_tweets_id_col=Database.hashtags['tweets_id_column'],
-                          in_hashtag_col=Database.hashtags['hashtag_index'],
+                          hashtag_use_col=Database.hashtag_embeddings['hashtag_use_column'],
+                          input_hashtags=Database.tweets_hashtags['table_name'],
+                          in_hashtag_tweets_id_col=Database.tweets_hashtags['tweets_id_column'],
+                          in_hashtag_col=Database.tweets_hashtags['hashtag_index'],
                           input_tweet_embeddings=Database.tweet_embeddings['table_name'],
                           in_tweet_id_col=Database.tweet_embeddings['tweet_id_column'],
                           in_tweet_embedding_col=Database.tweet_embeddings['tweet_embedding_column'],
@@ -28,6 +29,7 @@ def tweet_vec_to_hash_vec(conn=Database.get_Conn(), output=Database.hashtag_embe
         select += """ WHERE """ + str(where)
     incur.execute(select)
     hash_embeddings = {}
+    hash_count = {}
     for row in incur:
         id = row[0]
         embedding = row[1]
@@ -37,14 +39,16 @@ def tweet_vec_to_hash_vec(conn=Database.get_Conn(), output=Database.hashtag_embe
         for result in search:
             if result[0] in hash_embeddings:
                 hash_embeddings[result[0]] = [x + y for x, y in zip(hash_embeddings[result[0]], embedding)]
+                hash_count[result[0]] += 1
             else:
                 hash_embeddings[result[0]] = embedding
-
+                hash_count[result[0]] = 1
     count = 0
     start = time.localtime()
     for key, value in hash_embeddings.items():
-        out_term = """INSERT INTO """ + output + """ (""" + hashtag_id_col + """, """ + hashtag_embedding_col + """) VALUES (%s, %s)"""
-        outcur.execute(out_term, [key, Util.unitize(value)])
+        out_term = """INSERT INTO """ + output + """ (""" + hashtag_id_col + """, """ + hashtag_embedding_col + """, """ + hashtag_use_col + """) VALUES (%s, %s, %s)"""
+        if sum(value) != 0.:
+            outcur.execute(out_term, [key, Util.unitize(value), hash_count[key]])
         if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
             fin = ((time.mktime(time.localtime()) - time.mktime(start)) / count) * len(hash_embeddings)
             fin += time.mktime(start)

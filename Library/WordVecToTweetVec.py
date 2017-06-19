@@ -30,11 +30,12 @@ def word_vec_to_tweet_vec(conn=Database.get_Conn(), output=Database.tweet_embedd
     tweet_embeddings = {}
     start = time.localtime()
     #for every tweet_id and vector that we have in the tweet vecs,
+    buff = []
     for row in incur:
         #create the embedding of the tweet
         id = row[0]
         arr = row[1]
-        s = [0] * 128 #TODO get the max length needed first
+        s = [0] * Database.embedding_length #TODO get the max length needed first
         for word in arr:
             searchterm = """SELECT """ + in_word_embedding_col + """ FROM """ + input_word_embeddings + """ WHERE """ + in_word_id_col + "=" + str(word)
             search.execute(searchterm)
@@ -42,8 +43,13 @@ def word_vec_to_tweet_vec(conn=Database.get_Conn(), output=Database.tweet_embedd
             if embedding != None:
                 embedding = embedding[0]
                 s = [x + y for x,y in zip(embedding, s)]
-        out_term = """INSERT INTO """ + output + """ (""" + tweet_id_col + """, """ + tweet_embedding_col + """) VALUES (%s, %s)"""
-        outcur.execute(out_term, [id, Util.unitize(s)])
+        buff.append([id, Util.unitize(s)])
+        if len(buff) > Database.batch_size:
+            out_term = """INSERT INTO """ + output + """ (""" + tweet_id_col + """, """ + tweet_embedding_col + """) VALUES """ + ','.join(outcur.mogrify('(%s, %s)', x) for x in buff)
+            outcur.execute(out_term)
+            del buff
+            buff = []
+        #outcur.execute(out_term, [id, Util.unitize(s)])
         if incur.rownumber % 1000 == 1:  # int(incur.rowcount / 100) == 0:
             fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
             fin += time.mktime(start)
@@ -51,4 +57,6 @@ def word_vec_to_tweet_vec(conn=Database.get_Conn(), output=Database.tweet_embedd
                 outcur.execute("""COMMIT""")
             print str(incur.rownumber) + '/' + str(incur.rowcount) + ". Est. completion time: " + time.strftime(
                 "%b %d %Y %H:%M:%S", time.localtime(fin))
+    if len(buff) > 0:
+        out_term = """INSERT INTO """ + output + """ (""" + tweet_id_col + """, """ + tweet_embedding_col + """) VALUES """ + ','.join(outcur.mogrify('(%s, %s)', x) for x in buff)
     outcur.execute("""COMMIT""")

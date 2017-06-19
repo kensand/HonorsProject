@@ -1,7 +1,8 @@
 import itertools
-
+# test words
 words = ['a', 'b', 'c', 'd', 'e', 'f']
 
+#recursive function
 def rec(words, skips, grams):
     if len(words) != skips + grams:
         print "Error, window doesnt equal skips plus grams"
@@ -12,11 +13,12 @@ def rec(words, skips, grams):
         if grams == 0:
             return []
 
-
+# return all the combinations of n size from the mid
 def choose(n, mid):
     return list(itertools.combinations(mid, n))
 
 
+# get a k-skip n-gram from the list of words
 def getSkipGram(words, k, n):
     window = n - 2 + k
     l = len(words)
@@ -32,6 +34,7 @@ def getSkipGram(words, k, n):
 
     return ret
 
+# this function gets all the skip grams
 def getAllSkipGram(words, size=1024):
     l = len(words)
     ret = []

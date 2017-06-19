@@ -13,4 +13,4 @@ for i in range(500):
 
 print labeled_embeddings
 
-Visualize.plot_embeddings(labeled_embeddings, "tweet_embeddings.png")
+Visualize.plot_embeddings(labeled_embeddings, "images/tweet_embeddings.png")

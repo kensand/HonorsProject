@@ -29,17 +29,20 @@ parser.add_argument('-ohc', '--output_hashtag_id_column', action='store', dest='
 parser.add_argument('-oec', '--output_hashtag_embedding_column', action='store', dest='hashtag_embedding_column',
                     default=Database.hashtag_embeddings['hashtag_embedding_column'],
                     help='')
+parser.add_argument('-ouc', '--output_use_column', action='store', dest='hashtag_use_column',
+                    default=Database.hashtag_embeddings['hashtag_use_column'],
+                    help='')
 
 # hashtag reference options
 parser.add_argument('-it', '--input_hashtags', action='store', dest='input_hashtags',
-                    default=Database.hashtags['table_name'],
+                    default=Database.tweets_hashtags['table_name'],
                     help='')
 parser.add_argument('-iic', '--input_hashtags_tweet_id_column', action='store', dest='in_hashtag_tweets_id_column',
-                    default=Database.hashtags['tweets_id_column'],
+                    default=Database.tweets_hashtags['tweets_id_column'],
                     help='The name of the column in the hashtag table that has the tweet id')
 parser.add_argument('-ihc', '--input_hashtags_hashtag_column', action='store', dest='in_hashtag_column',
-                    default=Database.hashtags['hashtag_index'],
-                    help='The name of the column in the hashtag table that has the hashtag index')
+                    default=Database.tweets_hashtags['hashtag_id'],
+                    help='The name of the column in the hashtag table that has the hashtag id')
 
 
 # tweet embedding input options
@@ -85,12 +88,14 @@ else:
     conn = Database.get_Conn(user=args.user, password=Database.Password, host=args.host, dbname=args.dbname)
 
 #call the function
-TweetVecToHashVec.tweet_vec_to_hash_vec(conn=conn, output=args.output, hashtag_id_col=args.hashtag_id_column,
-                          hashtag_embedding_col=args.hashtag_embedding_column,
-                          input_hashtags=args.input_hashtags,
-                          in_hashtag_tweets_id_col=args.in_hashtag_tweets_id_column,
-                          in_hashtag_col=args.in_hashtag_column,
-                          input_tweet_embeddings=args.input_tweet_embeddings,
-                          in_tweet_id_col=args.in_tweet_id_column,
-                          in_tweet_embedding_col=args.in_tweet_embedding_column,
-                          append=False, where=False, commit=False)
+TweetVecToHashVec.tweet_vec_to_hash_vec(conn=conn, output=args.output,
+                                        hashtag_id_col=args.hashtag_id_column,
+                                        hashtag_embedding_col=args.hashtag_embedding_column,
+                                        hashtag_use_col=args.hashtag_use_column,
+                                        input_hashtags=args.input_hashtags,
+                                        in_hashtag_tweets_id_col=args.in_hashtag_tweets_id_column,
+                                        in_hashtag_col=args.in_hashtag_column,
+                                        input_tweet_embeddings=args.input_tweet_embeddings,
+                                        in_tweet_id_col=args.in_tweet_id_column,
+                                        in_tweet_embedding_col=args.in_tweet_embedding_column,
+                                        append=False, where=False, commit=False)

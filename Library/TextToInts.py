@@ -22,6 +22,7 @@ def integerize_tweets(dictionary=Database.get_dictionary(), conn=Database.get_Co
     # Run the loop to format each input, put that input into the formatted tweets table.
     start = time.localtime()
     count = 0
+    buff = []
     print 'Started at: ' + time.strftime("%b %d %Y %H:%M:%S", start)
     for row in incur:
 
@@ -33,11 +34,14 @@ def integerize_tweets(dictionary=Database.get_dictionary(), conn=Database.get_Co
             else:
                 #print token
                 arr.append(dictionary['/*UNKNOWN*/'])
-
-        insert = 'INSERT INTO ' + output + ' (' + out_id_col + ', ' + out_int_arr_col + ') VALUES (%s, %s)'
-        outcur.execute(insert, [id, arr])
+        buff.append([id, arr])
+        if len(buff) > Database.batch_size:
+            insert = 'INSERT INTO ' + output + ' (' + out_id_col + ', ' + out_int_arr_col + ') VALUES ' + ','.join(outcur.mogrify('(%s, %s)', x) for x in buff)
+            outcur.execute(insert)
+            del buff
+            buff = []
         count += 1
-        if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
+        if count % 10000 == 1:  # int(incur.rowcount / 100) == 0:
             fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
             fin += time.mktime(start)
             print str(count) + '/' + str(incur.rowcount) + " Est. completion time: " + time.strftime(
@@ -46,5 +50,9 @@ def integerize_tweets(dictionary=Database.get_dictionary(), conn=Database.get_Co
                 outcur.execute("""COMMIT""")
 
     print 'Completed, Total time: ' + str((time.mktime(time.localtime()) - time.mktime(start))) + ' seconds, committing'
+    if len(buff) > 0:
+        insert = 'INSERT INTO ' + output + ' (' + out_id_col + ', ' + out_int_arr_col + ') VALUES ' + ','.join(
+        outcur.mogrify('(%s, %s)', x) for x in buff)
+        outcur.execute(insert)
     outcur.execute("""COMMIT""")
     print 'Done, exiting'

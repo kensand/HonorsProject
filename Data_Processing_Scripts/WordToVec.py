@@ -4,7 +4,7 @@ import time
 
 import numpy
 
-from Library import Database
+from Library import Database, Util
 
 # The purpose of this file is to convert the tweet_text given fin the formatted tweet table with columns id, tweet_text and convert it into an array of integers representing the sequence of tokens
 
@@ -53,6 +53,8 @@ parser.add_argument('-w', '--where', action='store', dest='where', default=False
                     help='An optional WHERE filter for the inumpyut SELECT call. This allows you to add filters to the inumpyut data. You should write only the contents of the WHERE clause as it would be written in PSQL')
 parser.add_argument('-a', '--append', action='store_const', const=True, dest='append', default=False,
                     help='Using this flag will cause the output to be appended to the table as opposed to truncating the table.')
+parser.add_argument('-m', '--commit', action='store_const', const=True, dest='commit', default=False,
+                    help='Using this flag will commit every 1000 tweet insertions. This will drastically increase processing time, but will periodically commit, so that the table can be viewed as it is built')
 
 
 
@@ -98,6 +100,7 @@ if args.where != False:
 print "Executing: "
 print select
 incur.execute(select)
+total = incur.rowcount
 
 
 ##THIS IS WHERE IT GETS FUZZY
@@ -201,6 +204,7 @@ import math
 
 #get the dictionary
 dictionary = Database.get_dictionary(cursor=conn.cursor(), table=args.dict, word_column=args.dict_word_column, word_id_column=args.dict_word_id_column)
+dict_size = len(dictionary)
 reverse_dictionary = {x: y for y,x in dictionary.items()}
 vocabulary_size = len(dictionary.items())
 
@@ -267,7 +271,9 @@ with graph.as_default():
     init = tf.global_variables_initializer()
 
 # Step 5: Begin training.
-num_steps = 800001
+
+
+num_steps = total
 
 
 with tf.Session(graph=graph) as session:
@@ -313,7 +319,7 @@ with tf.Session(graph=graph) as session:
 
 # Step 6: Visualize the embeddings.
 
-
+'''
 def plot_with_labels(low_dim_embs, labels, filename='word_embeddings.png'):
     assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
     plt.figure(figsize=(18, 18))  # in inches
@@ -356,7 +362,8 @@ for i in range(l):
 
 
 
-exit(0)
+
+'''
 
 
 
@@ -385,37 +392,37 @@ exit(0)
 
 
 
-
-# Run the loop to format each inumpyut, put that inumpyut into the formatted tweets table.
+# Run the loop to format each input, put that input into the formatted tweets table.
 start = time.localtime()
 count = 0
 print 'Started at: ' + time.strftime("%b %d %Y %H:%M:%S", start)
-row = incur.fetch
-for row in incur:
 
-    id, tokens = row[0], row[1]
-    arr = []
+buff = []
+print final_embeddings
+for tokens in final_embeddings:
 
+    id = count
 
+    buff.append([id, tokens])
+    if len(buff) > Database.batch_size:
+        #print buff
+        insert = 'INSERT INTO ' + args.output + ' (' + args.word_id_column + ', ' + args.word_embedding_column + ') VALUES ' + ','.join(outcur.mogrify('(%s, %s)', [x[0], Util.unitize(x[1].tolist())]) for x in buff)
 
-
-
-
-
-
-
-
-
-    insert = 'INSERT INTO ' + args.output + ' (' + args.out_id_column + ', ' + args.out_int_array_column + ') VALUES (%s, %s)'
-    outcur.execute(insert, [id, arr])
+        outcur.execute(insert)
+        del buff
+        buff = []
     count += 1
     if count % 1000 == 1:  # int(incur.rowcount / 100) == 0:
         fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
         fin += time.mktime(start)
         outcur.execute("""COMMIT""")
-        print str(count) + '/' + str(incur.rowcount) + " Est. completion time: " + time.strftime(
+        print str(count) + '/' + str(dict_size) + " Est. completion time: " + time.strftime(
             "%b %d %Y %H:%M:%S", time.localtime(fin))
-
+if len(buff) > 0:
+    insert = 'INSERT INTO ' + args.output + ' (' + args.word_id_column + ', ' + args.word_embedding_column + ') VALUES ' + ','.join(
+        outcur.mogrify('(%s, %s)', [x[0], x[1].tolist()]) for x in buff)
+    outcur.execute(insert)
 print 'Completed, Total time: ' + str((time.mktime(time.localtime()) - time.mktime(start))) + ' seconds, committing'
+
 outcur.execute("""COMMIT""")
 print 'Done, exiting'

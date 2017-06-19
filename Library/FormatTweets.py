@@ -3,7 +3,7 @@ import getpass
 import time
 import nltk
 import unicodedata
-
+from nltk.stem import SnowballStemmer, LancasterStemmer, PorterStemmer, WordNetLemmatizer
 from Library import Database
 
 stops = ["a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone",
@@ -35,19 +35,31 @@ stops = ["a", "about", "above", "above", "across", "after", "afterwards", "again
          "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your",
          "yours", "yourself", "yourselves", "the",
          #Custom stop words
-         "rt", "in", "is", "in", "it", "its", "i'm",
+         "rt", "in", "is", "it", "its", "i'm",
          ]
 
-replace_words = {'=': ' ', '-': '', '_': ' ', '.': '', '"': '', ';': ' ', ':': '', '+': ' ', '/': '', "'s": '', '!': '', '?': '', ',': ' ' }
+replace_strings = {'=': ' ', '-': '', '_': ' ', '.': '', '"': '', ';': ' ', ':': '', '+': ' ', '/': '', "'s": '', '!': '', '?': '', ',': ' ' }
 
+#function to replace all the key strings in replace_strings with their respective values
 def replacements(x):
-    for char, rep in replace_words.items():
+    for char, rep in replace_strings.items():
         x = x.replace(char, rep)
     return x
 
+#formats the given text (usually a single tweet) into a string of important tokens
 def format_text(text):
-    tokens = [unicodedata.normalize('NFKD', x).encode('ascii', 'ignore').lower() for x in
-              nltk.TweetTokenizer(strip_handles=True, preserve_case=True ).tokenize(text=text)]
+
+
+    # ascii encode text
+    #text = unicodedata.normalize('NFKD', unicode(text)).encode('ascii', 'ignore')
+    text = text.decode("utf8").encode("ascii", "ignore")
+    # lowercase text
+    text = text.lower()
+
+    # replace strings using replace function
+    text = replacements(text)
+    #tokenize words (after char replacement), ascii encode them, and lowercase them.
+    tokens = nltk.TweetTokenizer(strip_handles=False, preserve_case=True ).tokenize(text=text)
 
     #for i in range(len(tokens)):
     #    for j in range(len(tokens[i])):
@@ -56,21 +68,30 @@ def format_text(text):
 
 
     #print 'before = ' + str(tokens)
-    tokens = map(replacements, tokens)
-    #print 'after  = ' + str(tokens)
-    #filter(lambda x : x is not None, tokens)
-    #print tokens
-
-    tokens = ' '.join(tokens).split()
 
 
-
-    tokens = filter((lambda x: (x not in stops and len(x) > 1 and len(x) <= 128 and x[:3] != "htt"
-                                and x[0] != '@' and x[0] != '#' and x[:2] != "RT" and x[:4] != "&amp" and
-                                not x.isdigit()
+    # filter certain tokens (links, unicode ampersand, etc.)
+    tokens = filter((lambda x: (x not in stops and
+                                len(x) > 1 and
+                                len(x) <= 128
+                                and x[:3] != "htt"
+                                and x[:2] != "rt"
+                                and x[:4] != "&amp"
+                                and not x.isdigit() #and x[0] != '#'
+                                and x[0] != '@'
                                 ))
 
                     , tokens)
+
+    # Stem or lemmatize the tokens
+    stemmer = SnowballStemmer('english')
+    # stemmer = LancasterStemmer('english')
+    # stemmer = PorterStemmer('english')
+    tokens = [stemmer.stem(x) for x in tokens]
+    #lemm = WordNetLemmatizer()
+    #tokens = [lemm.lemmatize(x, pos='n') for x in tokens]
+    #tokens = [lemm.lemmatize(x, pos='a') for x in tokens]
+    #tokens = [lemm.lemmatize(x, pos='v') for x in tokens]
     return tokens
 
 
@@ -93,13 +114,18 @@ def format_tweets(conn=Database.get_Conn(), input=Database.tweets['table_name'],
     # Run the loop to format each input, put that input into the formatted tweets table.
     start = time.localtime()
     print 'Started at: ' + time.strftime("%b %d %Y %H:%M:%S", start)
+    #outcur.execute("""BEGIN;DROP CONSTRAINT formatted_tweets_tweet_id_pk ON TABLE formatted_tweets;DROP INDEX public.formatted_tweets_tweet_id_pk RESTRICT;""")
+    buff = []
     for row in incur:
-
         id, text = row[0], row[1]
         tokens = format_text(text)
-        insert = 'INSERT INTO ' + output + ' (' + out_id_col + ', ' + out_tokens_col + ') VALUES (%s, %s)'
-        outcur.execute(insert, [id, tokens])
-        if incur.rownumber % 1000 == 1:  # int(incur.rowcount / 100) == 0:
+        buff.append([id, tokens])
+        if len(buff) > 10000:
+            insert = 'INSERT INTO ' + output + ' (' + out_id_col + ', ' + out_tokens_col + ') VALUES' + ','.join(outcur.mogrify("(%s, %s)", x) for x in buff)
+            outcur.execute(insert)
+            del buff
+            buff = []
+        if incur.rownumber % 100000 == 10:  # int(incur.rowcount / 100) == 0:
             fin = ((time.mktime(time.localtime()) - time.mktime(start)) / incur.rownumber) * incur.rowcount
             fin += time.mktime(start)
             if commit == True:
@@ -108,5 +134,6 @@ def format_tweets(conn=Database.get_Conn(), input=Database.tweets['table_name'],
                 "%b %d %Y %H:%M:%S", time.localtime(fin))
 
     print 'Completed, Total time: ' + str(time.mktime(time.localtime()) - time.mktime(start)) + ' seconds, committing'
+    #outcur.execute("""CREATE INDEX ON """ + output + """(""" + out_id_col + """);End;""")
     outcur.execute("""COMMIT""")
     print 'Done, exiting'
