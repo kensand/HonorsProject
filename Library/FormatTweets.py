@@ -95,7 +95,7 @@ def format_text(text):
     return tokens
 
 
-def format_tweets(conn=Database.get_Conn(), input=Database.tweets['table_name'], output=Database.formatted_tweets['table_name'], in_id_col=Database.tweets['tweet_id_column'], in_text_col=Database.tweets['text_column'], out_id_col=Database.formatted_tweets['tweet_id_column'], out_tokens_col=Database.formatted_tweets['tokens_column'], append=False, where=False, commit=False):
+def format_tweets(conn=Database.get_Conn(), input=Database.tweets['table_name'], output=Database.formatted_tweets['table_name'], in_id_col=Database.tweets['tweet_id_column'], in_text_col=Database.tweets['text_column'], out_id_col=Database.formatted_tweets['tweet_id_column'], out_tokens_col=Database.formatted_tweets['tokens_column'], append=True, where=False, commit=False):
 
     incur = conn.cursor()
     outcur = conn.cursor()

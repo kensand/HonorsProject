@@ -94,7 +94,7 @@ if args.append == False:
     outcur.execute("""COMMIT""")
     print "Truncated " + args.output
 
-select = "SELECT " + args.in_id_column + ", " + args.in_int_array_column + " FROM " + args.input
+select = "SELECT " + args.in_id_column + ", " + args.in_int_array_column + " FROM " + input
 if args.where != False:
     select += ' WHERE ' + args.where
 print "Executing: "

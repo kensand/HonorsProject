@@ -1,23 +1,23 @@
-from Library import Visualize, Database, Dictionary
+from Library import Visualize, Database, Dictionary, Util
 from scipy import spatial
 import pylab
 import numpy
 
 
-size = 100
+size = 10000
 ratio = 0
 
-hashtag1 = "hillary2016"
-hashtag2 = 'trump2016'
+hashtag1 = "catholic"
+hashtag2 = 'maga'
 
 
 cur = Database.get_Cur()
 search = Database.get_Cur()
 
-cur.execute("""SELECT id FROM hashtags WHERE hashtag=%s""", [hashtag1])
+cur.execute("""SELECT id FROM hashtags WHERE LOWER (hashtag)=%s""", [hashtag1])
 
 h1_id = cur.fetchone()[0]
-cur.execute("""SELECT id FROM hashtags WHERE hashtag=%s""", [hashtag2])
+cur.execute("""SELECT id FROM hashtags WHERE LOWER (hashtag)=%s""", [hashtag2])
 
 h2_id = cur.fetchone()[0]
 
@@ -82,15 +82,15 @@ def plot_with_labels(low_dim_embs, labels, xlabel, ylabel, filename='word_embedd
     plt.savefig(filename)
 
 #print labeled_embeddings.values()
-x = [d[0] for d in labeled_embeddings.values()]
-y = [d[1] for d in labeled_embeddings.values()]
+x = Util.scale([d[0] for d in labeled_embeddings.values()])
+y = Util.scale([d[1] for d in labeled_embeddings.values()])
 #print x
 #print len(y)
 m,b = pylab.polyfit(x, y, 1)
 
 print 'm = ' + str(m)
 print 'b = ' + str(b)
-plot_with_labels(numpy.array(labeled_embeddings.values()[:size]), numpy.array(labeled_embeddings.keys()[:size]),hashtag1, hashtag2, "images/hashtag_axis_embeddings.png")
+plot_with_labels(numpy.array([[a,b] for a,b in zip(x,y)][:size]), numpy.array(labeled_embeddings.keys()[:size]),hashtag1, hashtag2, "images/hashtag_axis_embeddings.png")
 
 print "Average difference of cosine distance from axis embeddings: " + str(avg_dist / counted)
 print "Standard deviation of differences of cosine distances: " + str(numpy.std(dists))

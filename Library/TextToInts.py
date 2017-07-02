@@ -4,9 +4,10 @@ import time
 
 from Library import Database
 
-def integerize_tweets(dictionary=Database.get_dictionary(), conn=Database.get_Conn(), input=Database.formatted_tweets['table_name'], output=Database.int_tweets['table_name'], in_id_col=Database.formatted_tweets['tweet_id_column'], in_tokens_col=Database.formatted_tweets['tokens_column'], out_id_col=Database.int_tweets['id_column'], out_int_arr_col=Database.int_tweets['int_array_column'], append=False, where=False, commit=False):
+def integerize_tweets(dictionary=Database.get_dictionary(), conn=Database.get_Conn(), input=Database.formatted_tweets['table_name'], output=Database.int_tweets['table_name'], in_id_col=Database.formatted_tweets['tweet_id_column'], in_tokens_col=Database.formatted_tweets['tokens_column'], out_id_col=Database.int_tweets['id_column'], out_int_arr_col=Database.int_tweets['int_array_column'], append=False, where=False, commit=False, schema='public'):
     incur = conn.cursor()
     outcur = conn.cursor()
+    output = schema + '.' + output
     if append == False:
         outcur.execute("""TRUNCATE """ + output)
         outcur.execute("""COMMIT""")

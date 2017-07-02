@@ -3,10 +3,11 @@ import collections
 import time
 
 
-def create_dictionary(conn=Database.get_Conn(), input=Database.formatted_tweets['table_name'], output=Database.dictionary['table_name'], in_tokens_col=Database.formatted_tweets['tokens_column'], out_id_col=Database.dictionary['word_id_column'], out_word_col=Database.dictionary['word_column'], out_use_col=Database.dictionary['use_column'], append=False, where=False, commit=False, size=int(Database.dictionary['default_size'])):
+def create_dictionary(conn=Database.get_Conn(), input=Database.formatted_tweets['table_name'], output=Database.dictionary['table_name'], in_tokens_col=Database.formatted_tweets['tokens_column'], out_id_col=Database.dictionary['word_id_column'], out_word_col=Database.dictionary['word_column'], out_use_col=Database.dictionary['use_column'], append=False, where=False, commit=False, size=int(Database.dictionary['default_size']), schema="public"):
     # create our cursors and truncate output if needed
     incur = conn.cursor()
     outcur = conn.cursor()
+    output = schema + '.' + output
     if append == False:
         outcur.execute("""TRUNCATE """ + output)
         outcur.execute("""COMMIT""")

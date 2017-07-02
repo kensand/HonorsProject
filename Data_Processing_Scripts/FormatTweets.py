@@ -47,7 +47,7 @@ parser.add_argument('-w', '--where', action='store', dest='where', default=False
                     help='An optional WHERE filter for the input SELECT call. This allows you to add filters to the input data. You should write only the contents of the WHERE clause as it would be written in PSQL')
 parser.add_argument('-m', '--commit', action='store_const', const=True, dest='commit', default=False,
                     help='Using this flag will commit every 1000 table insertions. This will drastically increase processing time, but will periodically commit, so that the table can be viewed as it is built')
-parser.add_argument('-a', '--append', action='store_const', const=True, dest='append', default=False,
+parser.add_argument('-a', '--append', action='store_const', const=False, dest='append', default=True,
                     help='Using this flag will cause the output to be appended to the table as opposed to truncating the table.')
 
 

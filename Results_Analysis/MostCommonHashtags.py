@@ -2,7 +2,7 @@ from Library import Database
 import collections
 cur = Database.get_Cur()
 print 'executing'
-cur.execute("""SELECT hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT tweet_id FROM tweets WHERE issue = 'political')""")
+cur.execute("""SELECT hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT tweet_id FROM tweets WHERE issue = 'abortion')""")
 
 print 'executed'
 counter = collections.Counter()
