@@ -35,6 +35,9 @@ hashtag_relationships={'table_name': 'hashtag_relationships'}
 
 #A group of functions to create the tables needed and in the specified schemas
 
+
+#TODO change all the table and column names to depend on the above config.
+
 def CreateHashtagEmbeddingTable(schema='public'):
     cur = get_Cur()
     if not table_exists(hashtag_embeddings['table_name'], schema):
@@ -63,9 +66,16 @@ def CreateIntTweetsTable(schema='public'):
         cur.execute(
             """create table """ + schema + """.""" + int_tweets['table_name'] + """ (	id bigint, int_array integer[]); create index tweetvecs_tweet_id_index on """ + schema + """.int_tweets (id); COMMIT;""")
 
+def CreateFormattedTweetsTable(schema='public'):
+    cur = get_Cur()
+    if not table_exists(formatted_tweets['table_name'], schema):
+        cur.execute("""create table """ + schema + """.""" + formatted_tweets['table_name'] + """ (id bigint not null constraint formatted_tweets_tweet_id_pk primary key, tokens varchar(128)[]); COMMIT;""")
 
 
-# function to return the default psycopg2 connection
+
+
+
+    # function to return the default psycopg2 connection
 def get_Conn(dbname=Dbname, user=User, host=Host, password=Password):
     try:
         conn = psycopg2.connect(

@@ -61,4 +61,5 @@ if args.password:
 else:
     conn = Database.get_Conn(user=args.user, password=Database.Password, host=args.host, dbname=args.dbname)
 
+Database.CreateFormattedTweetsTable()
 FormatTweets.format_tweets(conn=conn, input=args.input, output=args.output, in_id_col=args.in_id_column, in_text_col=args.in_text_column, out_id_col=args.out_id_column, out_tokens_col=args.out_token_column, append=args.append, where=args.where, commit=args.commit)

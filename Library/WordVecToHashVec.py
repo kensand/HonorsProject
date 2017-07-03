@@ -147,7 +147,7 @@ def WordVecToHashVec(
 
                 #calculate the final word embedding by taking the specificity of the word in regards to the hashtag into account
                 if word_uses[word] > 0:
-                    final_word_emb = Util.scalar_vec_mult( * hash_counts[hash_id][word] / word_uses[word], word_embs[word])
+                    final_word_emb = Util.scalar_vec_mult(total_word_count * hash_counts[hash_id][word] / word_uses[word], word_embs[word])
                     #print final_word_emb
                     #this is where we combine the words in the tweets
                     tweet_emb = Util.sum_vec(tweet_emb, final_word_emb)
