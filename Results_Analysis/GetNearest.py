@@ -5,7 +5,7 @@ from scipy import  spatial
 
 
 
-schema='abortionweek7.'
+schema='abortionall.'
 cur = Database.get_Cur()
 cur.execute("""SELECT word_id, word_embedding FROM """ + schema + """word_embeddings""")
 l = cur.fetchmany(50000)

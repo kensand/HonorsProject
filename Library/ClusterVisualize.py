@@ -47,14 +47,18 @@ def ClusterVisualize(folder='', schema='public'):
     graph = {}
     hashtags = {}
     for i in cur:
-        if cur.rownumber >40000:
-            break
         #outstrlist.append( i[0]
         #outstrlist.append( i[1]
         graph[i[0]] = i[2]
         hashtags[i[0]] = i[1]
 
-
+    search_string = """SELECT hashtag_id, hashtag_embedding FROM """ + schema + """.""" + \
+                    Database.hashtag_embeddings['table_name'] # TODO move column names to database dict
+    # outstrlist.append( search_string
+    matrix = {}
+    cur.execute(search_string)
+    for i in cur:
+        matrix[i[0]] = i[1]
 
 
     cluster_labels = {}
@@ -175,8 +179,31 @@ def ClusterVisualize(folder='', schema='public'):
     outstrlist.append( schema)
     outstrlist.append( len(graph))
     #print l
-    plt.savefig(folder + 'graphl.png')
+    plt.savefig(folder + schema + '-labled_relationships.png')
     plt.clf()
+
+    m = matrix.values()
+    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=50000)
+    low_dims = tsne.fit_transform(m)
+    color_num = cluster_num
+    x = numpy.arange(color_num)
+    ys = [i + x + (i * x) ** 2 for i in range(color_num)]
+    colors = cm.rainbow(numpy.linspace(0, 1, len(ys)))
+
+    plt.figure(figsize=(18, 18))  # in inches
+    lim = 200
+
+    for i, j in enumerate(matrix.keys()):
+        mark = 'o'
+        l = ''
+        if j < 0:
+            mark = 's'
+        plt.scatter(low_dims[i][0], low_dims[i][1], marker=mark)
+
+
+    plt.savefig(folder + schema + '-hashtag_embeddings.png')
+    plt.clf()
+
     plt.figure(figsize=(18, 18))  # in inches
     for i, j in enumerate(graph.keys()):
         mark='o'
@@ -199,7 +226,7 @@ def ClusterVisualize(folder='', schema='public'):
 
     l = tsne.fit_transform(cents)
     #print l
-    plt.savefig(folder + 'graphn.png')
+    plt.savefig(folder + schema + '-unlabeled_relationships.png')
     f = open(folder+''+schema+'Result', 'w')
 
     f.writelines('\n'.join([str(x) for x in outstrlist]))

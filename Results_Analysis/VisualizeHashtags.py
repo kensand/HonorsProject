@@ -1,15 +1,19 @@
 from Library import Visualize, Database
+import os
 
-cur = Database.get_Cur()
-search = Database.get_Cur()
-cur.execute("""SELECT hashtag_id, hashtag_embedding FROM hashtag_embeddings ORDER BY use DESC""")
-labeled_embeddings = {}
-for i in range(100):
-    r = cur.fetchone()
-    search.execute("SELECT hashtag FROM hashtags WHERE id = %s", [r[0]])
-    s = search.fetchone()[0]
-    labeled_embeddings[s] = r[1]
+def VisualizeHashtags(folder='', schema='public'):
+    cur = Database.get_Cur()
+    search = Database.get_Cur()
+    cur.execute("""SELECT hashtag_id, hashtag_embedding FROM hashtag_embeddings ORDER BY use DESC""")
+    labeled_embeddings = {}
+    for r in cur:
 
-print labeled_embeddings
+        search.execute("SELECT hashtag FROM hashtags WHERE id = %s", [r[0]])
+        s = search.fetchone()[0]
+        labeled_embeddings[s] = r[1]
 
-Visualize.plot_embeddings(labeled_embeddings, "images/hashtag_embeddings.png", label_show=True)
+    print labeled_embeddings
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    Visualize.plot_embeddings(labeled_embeddings, folder + schema + '-hashtag_embeddings.png', label_show=True)
