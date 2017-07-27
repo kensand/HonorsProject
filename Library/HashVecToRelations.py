@@ -26,7 +26,7 @@ def HashVecToRelations(schema='public'):
     graph = {}
     hashtags = {}
     for i in cur:
-        if cur.rownumber >10000:
+        if cur.rownumber >100000:
             break
         #print i[0]
         #print i[1]

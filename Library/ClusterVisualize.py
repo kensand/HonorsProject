@@ -31,7 +31,14 @@ notable_hashtags = ['defundpp',
 'fundpp']
 
 
+ancur = Database.get_Cur()
+ancur.execute("SELECT id, hashtag, annotation FROM annotated_hashtags ORDER BY annotation DESC ")
+annotated_hashtags = ancur.fetchall()
+notable_hashtags = [i[1] for i in annotated_hashtags]
+
+
 def ClusterVisualize(folder='', schema='public'):
+    print "Loading hashtag relationships"
     if not os.path.exists(folder):
         os.makedirs(folder)
     # get the graph
@@ -50,7 +57,7 @@ def ClusterVisualize(folder='', schema='public'):
         #outstrlist.append( i[0]
         #outstrlist.append( i[1]
         graph[i[0]] = i[2]
-        hashtags[i[0]] = i[1]
+        #hashtags[i[0]] = i[1] #here
 
     search_string = """SELECT hashtag_id, hashtag_embedding FROM """ + schema + """.""" + \
                     Database.hashtag_embeddings['table_name'] # TODO move column names to database dict
@@ -59,15 +66,17 @@ def ClusterVisualize(folder='', schema='public'):
     cur.execute(search_string)
     for i in cur:
         matrix[i[0]] = i[1]
-
+        search.execute("""SELECT hashtag FROM hashtags WHERE id=%s""", [i[0]]) #here
+        hashtags[i[0]] = search.fetchone()[0] #here
 
     cluster_labels = {}
     if kmeans:
 
         km = KMeans(n_clusters=cluster_num, random_state=0)
-        km.fit(graph.values())
+        #km.fit(graph.values())
+        km.fit(matrix.values())
         l = km.labels_.tolist()
-        for i,j in enumerate(graph.keys()):
+        for i,j in enumerate(matrix.keys()):#graph.keys()): #here
             cluster_labels[j] = l[i]
 
 
@@ -94,7 +103,7 @@ def ClusterVisualize(folder='', schema='public'):
 
 
 
-
+    print "Done clustering"
     notable_hashtags_clusters = {}
     clusters = {}
     for i,j in cluster_labels.items():
@@ -114,7 +123,7 @@ def ClusterVisualize(folder='', schema='public'):
         m = []
         for ind in val:
             mem.append(hashtags[ind])
-            m.append(graph[ind])
+            m.append(matrix[ind])#graph[ind]) #here
 
         dists = [spatial.distance.euclidean(x,cents[count]) for x in m]
         #outstrlist.append( cents[count]*len(m)
@@ -124,7 +133,7 @@ def ClusterVisualize(folder='', schema='public'):
         outstrlist.append( ", ".join(mem))
         count+=1
 
-
+    print 'Calculated cluster standard deviations'
 
     centavg = 0
     for ind,i in enumerate(cents):
@@ -135,11 +144,35 @@ def ClusterVisualize(folder='', schema='public'):
             centavg += spatial.distance.euclidean(i,j)
     centavg /= len(cents)
     outstrlist.append( "Average distance between centers of clusters: " + str(centavg)+ "\n")
+    clusterl = [0,0]
+    clusterc=[0,0]
+    for i in annotated_hashtags:
+        if i[1] in notable_hashtags_clusters:
+            if str(i[2]) == 'l':
+                clusterl[notable_hashtags_clusters[i[1]]] += 1
+            elif str(i[2]) == 'c':
+                clusterc[notable_hashtags_clusters[i[1]]] += 1
+            outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): ' + str(notable_hashtags_clusters[i[1]]))
+        else:
+            outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): Not found')
+
+    outstrlist.append("Prolife annotated hashtags: Cluster 0: " + str(clusterl[0]) + " Cluster 1: " + str(clusterl[1]))
+    outstrlist.append("Prochoice annotated hashtags: Cluster 0: " + str(clusterc[0]) + " Cluster 1: " + str(clusterc[1]))
+
+
+    print "Compared clustering for annotated hashtags, proceeding to graph"
+    '''
     for i in notable_hashtags:
         if i in notable_hashtags_clusters:
             outstrlist.append(str(i) + ': ' + str(notable_hashtags_clusters[i]))
         else:
             outstrlist.append(str(i) + ': Not found')
+    '''
+
+    f = open(folder + '' + schema + 'Result', 'w')
+
+    f.writelines('\n'.join([str(x) for x in outstrlist]))
+    return
 
     m = graph.values()
     tsne = TSNE(perplexity=30,  n_components=2, init='pca', n_iter=50000)
@@ -227,6 +260,4 @@ def ClusterVisualize(folder='', schema='public'):
     l = tsne.fit_transform(cents)
     #print l
     plt.savefig(folder + schema + '-unlabeled_relationships.png')
-    f = open(folder+''+schema+'Result', 'w')
 
-    f.writelines('\n'.join([str(x) for x in outstrlist]))

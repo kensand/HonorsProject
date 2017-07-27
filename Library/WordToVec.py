@@ -1,5 +1,5 @@
-import argparse
-import getpass
+import tensorflow as tf
+import math
 import time
 
 import numpy
@@ -8,60 +8,22 @@ from Library import Database, Util
 
 # create the connection
 def WordToVec(schema='public'):
-    parser = argparse.ArgumentParser(prog='TextToInts',
-                                     usage='python TextToInts -i formatted_tweets -k dictionary -o output_table -d dbname -c host -u user -p',
-                                     description="\n\n This program TRUNCATES the output table 'formatted_tweets' at the beginning by default.")
 
-    parser.add_argument('-i', '--input', action='store', dest='input', default=Database.int_tweets['table_name'],
-                        help='')
-    parser.add_argument('-iic', '--input_id_column', action='store', dest='in_id_column',
-                        default=Database.int_tweets['id_column'],
-                        help='The name of the input column holding the tweet ids.')
-    parser.add_argument('-itc', '--input_int_array_column', action='store', dest='in_int_array_column',
-                        default=Database.int_tweets['int_array_column'],
-                        help='The name of the input column holding the tweet tokens.')
-
-    # dictionary options
-    parser.add_argument('-k', '--dictionary', action='store', dest='dict', default=Database.dictionary['table_name'],
-                        help='The name of the inumpyut table, which should have columns "id" and "text", where id is a big int representing the tweet id, and text is a string of some sort.')
-
-    parser.add_argument('-kic', '--dictionary_word_id_column', action='store', dest='dict_word_id_column',
-                        default=Database.dictionary['word_id_column'],
-                        help='')
-    parser.add_argument('-kwc', '--dictionary_word_column', action='store', dest='dict_word_column',
-                        default=Database.dictionary['word_column'],
-                        help='')
-
-    # output options
-    parser.add_argument('-o', '--output', action='store', dest='output', default=Database.word_embeddings['table_name'],
-                        help='The name of the output table, which will have columns "id", and "tokens", where id will be the same as the inumpyut id, and tokens will be a tokenized and formatted array of strings.')
-    parser.add_argument('-owc', '--output_word_id_column', action='store', dest='word_id_column',
-                        default=Database.word_embeddings['word_id_column'],
-                        help='The name of the output column to which the tweet ids will be written.')
-    parser.add_argument('-oec', '--output_embedding_column', action='store', dest='word_embedding_column',
-                        default=Database.word_embeddings['word_embedding_column'],
-                        help='The name of the output column to which the integer arrays will be written.')
-    parser.add_argument('-s', '--size', action='store', dest='size', default=Database.word_embeddings['embedding_size'],
-                        help='The number of words to be recorded in the dictionary')
-
-    # utility options
-    parser.add_argument('-w', '--where', action='store', dest='where', default=False,
-                        help='An optional WHERE filter for the inumpyut SELECT call. This allows you to add filters to the inumpyut data. You should write only the contents of the WHERE clause as it would be written in PSQL')
-    parser.add_argument('-a', '--append', action='store_const', const=True, dest='append', default=False,
-                        help='Using this flag will cause the output to be appended to the table as opposed to truncating the table.')
-    parser.add_argument('-m', '--commit', action='store_const', const=True, dest='commit', default=False,
-                        help='Using this flag will commit every 1000 tweet insertions. This will drastically increase processing time, but will periodically commit, so that the table can be viewed as it is built')
-
-    # database options
-    parser.add_argument('-u', '--user', action='store', dest='user', default=Database.User,
-                        help='The user to login to the database as.')
-    parser.add_argument('-p', '--password', action='store_const', const=True, dest='password', default=False,
-                        help='Using this flag will prompt for password for database.')
-    parser.add_argument('-c', '--host', action='store', dest='host', default=Database.Host,
-                        help='The host of the database to be accessed.')
-    parser.add_argument('-d', '--dbname', action='store', dest='dbname', default=Database.Dbname,
-                        help='The database name at the host.')
-    args = parser.parse_args()
+    input = Database.int_tweets['table_name']
+    in_id_column = Database.int_tweets['id_column']
+    in_int_array_column = Database.int_tweets['int_array_column']
+    in_dict=Database.dictionary['table_name']
+    dict_word_id_column=Database.dictionary['word_id_column']
+    dict_word_column=Database.dictionary['word_column']
+    output=Database.word_embeddings['table_name']
+    word_id_column=Database.word_embeddings['word_id_column']
+    word_embedding_column=Database.word_embeddings['word_embedding_column']
+    size=Database.word_embeddings['embedding_size']
+    where=False
+    append=False
+    commit=False
+    
+    
 
 
 
@@ -71,7 +33,7 @@ def WordToVec(schema='public'):
     batch_size = embedding_size = int(size)
     output = Database.word_embeddings['table_name']
 
-    inp = schema + "." + args.input
+    inp = schema + "." + input
     output = schema + "." + output
 
 
@@ -84,13 +46,13 @@ def WordToVec(schema='public'):
 
 
 
-    select = "SELECT " + args.in_id_column + ", " + args.in_int_array_column + " FROM " + inp
-    if args.where != False:
-        select += ' WHERE ' + args.where
+    select = "SELECT " + in_id_column + ", " + in_int_array_column + " FROM " + inp
+    if where != False:
+        select += ' WHERE ' + where
     print "Executing: "
     print select
     incur.execute(select)
-    total = incur.rowcount * 10
+    total = incur.rowcount
 
 
     ##THIS IS WHERE IT GETS FUZZY
@@ -147,28 +109,6 @@ def WordToVec(schema='public'):
         del sg
         return batch, labels
 
-        '''
-        sg = SkipGram.getAllSkipGram(t, batch_size)
-        #print "SG = " + str(sg)
-        for i in range(batch_size):
-            if i >= len(sg):
-                j = numpy.random.randint(len(sg))
-            else:
-                j = i
-            if len(sg[j]) == 2:
-                # print("sg = ", sg[i])
-                batch[i] = sg[j][0]
-                labels[i, 0] = sg[j][1]
-        '''
-        '''
-            else:
-                r1 = numpy.random.randint(len(sg[j]))
-                r2 = numpy.random.randint(len(sg[j]))
-                while r1 == r2:
-                    r2 = numpy.random.randint(len(sg[j]))
-                batch[i] = sg[j][r1]
-                labels[i, 0] = sg[j][r2]
-            '''
 
 
 
@@ -180,20 +120,9 @@ def WordToVec(schema='public'):
 
 
 
-
-
-
-
-
-
-
-
-
-    import tensorflow as tf
-    import math
 
     #get the dictionary
-    dictionary = Database.get_dictionary(cursor=conn.cursor(), table=args.dict, word_column=args.dict_word_column, word_id_column=args.dict_word_id_column, schema=schema)
+    dictionary = Database.get_dictionary(cursor=conn.cursor(), table=in_dict, word_column=dict_word_column, word_id_column=dict_word_id_column, schema=schema)
     dict_size = len(dictionary)
     reverse_dictionary = {x: y for y,x in dictionary.items()}
     vocabulary_size = 50000#len(dictionary.items())
@@ -252,10 +181,7 @@ def WordToVec(schema='public'):
         # Compute the cosine similarity between minibatch examples and all embeddings.
         norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
         normalized_embeddings = embeddings / norm
-        valid_embeddings = tf.nn.embedding_lookup(
-            normalized_embeddings, valid_dataset)
-        similarity = tf.matmul(
-            valid_embeddings, normalized_embeddings, transpose_b=True)
+
 
         # Add variable initializer.
         init = tf.global_variables_initializer()
@@ -289,8 +215,6 @@ def WordToVec(schema='public'):
                 print "Average loss at step '" + str(step) + "/" + str(num_steps) + "': " + str(average_loss)
                 if start_loss == -1:
                     start_loss = average_loss
-                if average_loss < start_loss / 50:
-                    break
                 average_loss = 0
             '''
             # Note that this is expensive (~20% slowdown if computed every 500 steps)
@@ -313,78 +237,6 @@ def WordToVec(schema='public'):
 
     # Step 6: Visualize the embeddings.
 
-    '''
-    def plot_with_labels(low_dim_embs, labels, filename='word_embeddings.png'):
-        assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"
-        plt.figure(figsize=(18, 18))  # in inches
-        for i, label in enumerate(labels):
-            x, y = low_dim_embs[i, :]
-            plt.scatter(x, y)
-            plt.annotate(label,
-                         xy=(x, y),
-                         xytext=(5, 2),
-                         textcoords='offset points',
-                         ha='right',
-                         va='bottom')
-    
-        plt.savefig(filename)
-    
-    
-    try:
-        from sklearn.manifold import TSNE
-        import matplotlib.pyplot as plt
-    
-        tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-        plot_only = 500
-        low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
-        labels = [reverse_dictionary[i].decode('UTF-8', 'replace').encode('ascii', 'replace') for i in xrange(plot_only)]
-        plot_with_labels(low_dim_embs, labels)
-    
-    except ImportError:
-        print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
-    
-    #print final_embeddings, dictionary, reverse_dictionary
-    
-    
-    print "Saving embeddings"
-    l = len(final_embeddings)
-    for i in range(l):
-        if i % 1000 == 1:
-            print str(i) + '/' + str(l)
-            outcur.execute("""COMMIT""")
-        outcur.execute("""INSERT INTO """ + args.output + """ (""" + args.word_id_column + ", " + args.word_embedding_column + ") VALUES (%s, %s)", [i, final_embeddings[i].tolist()])
-    
-    
-    
-    
-    '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     # Run the loop to format each input, put that input into the formatted tweets table.
     start = time.localtime()
@@ -400,7 +252,7 @@ def WordToVec(schema='public'):
         buff.append([id, tokens])
         if len(buff) > Database.batch_size:
             #print buff
-            insert = 'INSERT INTO ' + output + ' (' + args.word_id_column + ', ' + args.word_embedding_column + ') VALUES ' + ','.join(outcur.mogrify('(%s, %s)', [x[0], Util.unitize(x[1].tolist())]) for x in buff)
+            insert = 'INSERT INTO ' + output + ' (' + word_id_column + ', ' + word_embedding_column + ') VALUES ' + ','.join(outcur.mogrify('(%s, %s)', [x[0], Util.unitize(x[1].tolist())]) for x in buff)
 
             outcur.execute(insert)
             del buff
@@ -413,7 +265,7 @@ def WordToVec(schema='public'):
             print str(count) + '/' + str(dict_size) + " Est. completion time: " + time.strftime(
                 "%b %d %Y %H:%M:%S", time.localtime(fin))
     if len(buff) > 0:
-        insert = 'INSERT INTO ' + output + ' (' + args.word_id_column + ', ' + args.word_embedding_column + ') VALUES ' + ','.join(
+        insert = 'INSERT INTO ' + output + ' (' + word_id_column + ', ' + word_embedding_column + ') VALUES ' + ','.join(
             outcur.mogrify('(%s, %s)', [x[0], x[1].tolist()]) for x in buff)
         outcur.execute(insert)
     print 'Completed, Total time: ' + str((time.mktime(time.localtime()) - time.mktime(start))) + ' seconds, committing'
