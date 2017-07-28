@@ -29,5 +29,5 @@ for tweet_id, hashtags in tweetshashtags.items():
                 if hashtag1 != hashtag2: #actually, might be ok if they are the same - just results in coutn of times used
                     graph[hashtag1][hashtag2] += 1
 
-
+print graph
 
