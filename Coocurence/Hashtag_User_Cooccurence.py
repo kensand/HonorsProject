@@ -19,7 +19,7 @@ min_hashtag_occurence = 4
 # get the hashtags used by each user.
 
 cur = Database.get_Cur()
-query = """SELECT user_id, id from tweets where issue='abortion' limit 1000000"""
+query = """SELECT user_id, id from tweets where issue='abortion' limit 100"""
 cur.execute(query)
 
 user_tweets = {}
@@ -33,7 +33,7 @@ for i in cur:
 
 #get the hashtags present in each tweet
 
-query = """SELECT tweet_id, hashtag_id FROM tweets_hashtags where tweet_id in (SELECT tweet_id FROM tweets WHERE issue = 'abortion' LIMIT 1000000)"""
+query = """SELECT tweet_id, hashtag_id FROM tweets_hashtags where tweet_id in (SELECT tweet_id FROM tweets WHERE issue = 'abortion' LIMIT 100)"""
 cur.execute(query)
 hashtag_count = {}
 tweets_hashtags = {}
@@ -100,6 +100,9 @@ for hs in user_hashtags.values():
 
 print "Clustering graph, len=" + str(len(graph))
 #cluster the graph
+
+
+
 start = [[0] * len(graph)]
 
 
@@ -111,7 +114,22 @@ l = {}
 for i in range(len(c)):
     for j in range(len(c[i])):
         l[c[i][j]] = i
+'''
 
+from mcl import mcl_clustering
+import networkx as nx
+
+print graph
+
+print np.matrix(graph).shape
+
+inm = nx.from_numpy_matrix(np.matrix(graph))
+
+m, cluster = mcl_clustering.networkx_mcl(inm)
+
+print cluster
+exit(0)
+'''
 print "Searching hashtag names"
 
 hashtag_clusters = {}
