@@ -15,7 +15,7 @@ hashtag_indicies = {}
 for row in cur:
     tweet_id = row[0]
     hashtag_id = row[1]
-    if hashtag_id not in hashtag_indicies and count < 25000:
+    if hashtag_id not in hashtag_indicies and count < 35000:
         hashtag_indicies[hashtag_id] = count
         count += 1
     if hashtag_id in hashtag_indicies:
@@ -49,8 +49,8 @@ del(tweetshashtags)
 gc.collect()
 
 
-'''
-cluster_num = 2
+
+cluster_num = 20
 print "starting clustering"
 km = KMeans(n_clusters=cluster_num, random_state=0)
 #km.fit(graph.values())
@@ -71,7 +71,7 @@ l = {}
 for i in range(len(c)):
     for j in range(len(c[i])):
         l[c[i][j]] = i
-
+'''
 
 hashtag_clusters = {}
 search = Database.get_Cur()
