@@ -12,69 +12,96 @@ try:
 except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
-#get the tweets hashtag relationships if the hashtag occurs with another hashtag in the same tweet atleast once.
+
+min_hashtag_occurence = 4
+
+
+# get the hashtags used by each user.
 
 cur = Database.get_Cur()
-query = "SELECT tweet_id, hashtag_id, count(tweet_id) FROM tweets_hashtags WHERE tweet_id in (SELECT id from tweets where issue='abortion') GROUP BY tweet_id,hashtag_id HAVING COUNT (tweet_id) > 1"
+query = """SELECT user_id, id from tweets where issue='abortion' limit 100"""
 cur.execute(query)
 
-#create a list of hashtags (given indicies) for each unique tweet id
+user_tweets = {}
+for i in cur:
+    user = i[0]
+    tweet = i[1]
+    if user in user_tweets:
+        user_tweets[user].append(tweet)
+    else:
+        user_tweets[user] = [tweet]
 
-tweetshashtags = {}
-count = 0
+#get the hashtags present in each tweet
+
+query = """SELECT tweet_id, hashtag_id FROM tweets_hashtags where tweet_id in (SELECT tweet_id FROM tweets WHERE issue = 'abortion' LIMIT 100)"""
+cur.execute(query)
+hashtag_count = {}
+tweets_hashtags = {}
+for i in cur:
+    tweet = i[0]
+    hashtag = i[1]
+    if hashtag in hashtag_count:
+        hashtag_count[hashtag] += 1
+    else:
+        hashtag_count[hashtag] = 1
+
+    if tweet in user_tweets:
+        tweets_hashtags[tweet].append(hashtag)
+    else:
+        tweets_hashtags[tweet] = [hashtag]
+
+
+#calculate the hashtags used by each user
+
+user_hashtags = {}
+for user, tweets in user_tweets.items():
+    if user not in user_hashtags:
+        user_hashtags[user] = []
+    for tweet in tweets:
+        if tweet in tweets_hashtags:
+            for hashtag in tweets_hashtags[tweet]:
+                if hashtag not in user_hashtags[user]:
+                    user_hashtags[user].append(hashtag)
+
+#filter the users that dont user more than one hashtag
+user_hashtags = {k: v for k, v in user_hashtags.items() if len(v) > 1}
+
+#assign indicies to each hashtag in the graph
 hashtag_indicies = {}
-for row in cur:
-    tweet_id = row[0]
-    hashtag_id = row[1]
-    if hashtag_id not in hashtag_indicies and count < 35000:
-        hashtag_indicies[hashtag_id] = count
-        count += 1
-    if hashtag_id in hashtag_indicies:
-        if tweet_id in tweetshashtags:
-            tweetshashtags[tweet_id].append(hashtag_indicies[hashtag_id])
-        else:
-            tweetshashtags[tweet_id] = [hashtag_indicies[hashtag_id]]
+count = 0
+
+for hashtags in user_hashtags.values():
+    for hashtag in hashtags:
+        if hashtag not in hashtag_indicies and hashtag_count[hashtag] >= min_hashtag_occurence:
+            hashtag_indicies[hashtag] = count
+            count += 1
+
+#create empty graph
+graph = [[0 for x in range(count)] for x in range(count)]
+
+#print user_hashtags
+#print user_hashtags
+#print hashtag_indicies
+
+#go through each user and if two hashtags coocur in the users tweets mark it ont he graph
+for hs in user_hashtags.values():
+    for hashtag1 in hs:
+        for hashtag2 in hs:
+            if hashtag1 in hashtag_indicies and hashtag2 in hashtag_indicies:
+                #print graph
+                #print str(hashtag1) + ',' + str(hashtag2) + ': ' + str(hashtag_indicies[hashtag1]) + ',' + str(hashtag_indicies[hashtag2]) + ':: ' + str(graph[hashtag_indicies[hashtag1]]) + ',' + str(graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]])
+                graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] = 1 #+= 1
+
+#print graph
+#exit(0)
+#print 'graph length = ' + str(len(graph))
+#print [x[:500] for x in graph[:500]]
 
 
-#create a graph (in matrix form)  of the coocurence of each hashtag
-graph = []
-print count
-for i in range(count):
-    arr = array.array('H')
-    arr.append(np.int16(0))
-    graph.append(arr*count)
-    #print type(graph[i][0])
-max = 0
-for tweet_id, hashtags in tweetshashtags.items():
-    if len(hashtags) > 1:
-        for hashtag1 in hashtags:
-            for hashtag2 in hashtags:
-                if hashtag1 != hashtag2: #actually, might be ok if they are the same - just results in coutn of times used
-                    graph[hashtag1][hashtag2] = np.uint16(1)
-                    if max < graph[hashtag1][hashtag2]:
-                        max = graph[hashtag1][hashtag2]
-                    #print type(graph[hashtag1][hashtag2])
-
-#for i in range(len(graph)):
-    #for j in range(len(graph[i])):
-        #graph[i][j] = max - graph[i][j]
-del(tweetshashtags)
-gc.collect()
-
-#def removeUnlinked(graph):
-#    for x,y in
+print "Clustering graph, len=" + str(len(graph))
+#cluster the graph
 
 
-
-cluster_num = 20
-print "starting clustering"
-km = KMeans(n_clusters=cluster_num, random_state=0)
-#km.fit(graph.values())
-print "fitting"
-km.fit(graph)
-print "getting labels"
-l = km.labels_.tolist()
-'''
 
 start = [[0] * len(graph)]
 
@@ -89,6 +116,22 @@ for i in range(len(c)):
         l[c[i][j]] = i
 '''
 
+from mcl import mcl_clustering
+import networkx as nx
+
+print graph
+
+print np.matrix(graph).shape
+
+inm = nx.from_numpy_matrix(np.matrix(graph))
+
+m, cluster = mcl_clustering.networkx_mcl(inm)
+
+print cluster
+exit(0)
+'''
+print "Searching hashtag names"
+
 hashtag_clusters = {}
 search = Database.get_Cur()
 hashtag_ids = {}
@@ -98,7 +141,6 @@ for hashtag_id, index in hashtag_indicies.items():
     hashtag_ids[hashtag_id] = hashtag
     hashtag_clusters[hashtag] = l[index]
 
-#print hashtag_clusters
 
 
 ancur = Database.get_Cur()
@@ -111,15 +153,15 @@ notable_hashtags_clusters = {}
 
 clusters = {}
 for hashtag, label in hashtag_clusters.items():
-    print hashtag
+    #print hashtag
     if hashtag in notable_hashtags:
         notable_hashtags_clusters[hashtag] = label
     if label in clusters:
         clusters[label].append(hashtag)
     else:
         clusters[label] = [hashtag]
-print notable_hashtags
-print notable_hashtags_clusters
+#print notable_hashtags
+#print notable_hashtags_clusters
 
 
 clusterl = [0] * num_clusters
@@ -140,17 +182,17 @@ for i in annotated_hashtags:
     else:
         outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): Not found')
 
-
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
 
-f = open('CoocurenceResults', 'w')
+f = open('UserCoocurenceResults', 'w')
 
 f.writelines('\n'.join([str(x) for x in outstrlist]))
 f.close()
 
+print "Graphing"
 
-
+#reduce dimensionality
 m = graph
 tsne = TSNE(perplexity=30,  n_components=2, init='pca', n_iter=50000)
 low_dims = tsne.fit_transform(m)
@@ -169,10 +211,10 @@ for i,j in hashtag_indicies.items():
     l = ''
     if j < 0:
         mark = 's'
-    print hashtag_clusters[hashtag_ids[i]]
+    #print hashtag_clusters[hashtag_ids[i]]
     plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[hashtag_clusters[hashtag_ids[i]]], marker=mark)
     if lim > 0:
-        l = hashtag_ids[i]
+        l = hashtag_ids[i].decode('UTF-8', 'replace').encode('ascii', 'replace')
         lim -= 1
 
 
@@ -186,4 +228,4 @@ for i,j in hashtag_indicies.items():
 
 #print cents
 
-plt.savefig('clusters.png')
+plt.savefig('User_hashtag_clusters.png')
