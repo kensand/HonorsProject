@@ -105,7 +105,7 @@ print "Clustering graph, len=" + str(len(graph))
 
 start = [[0] * len(graph)]
 
-
+'''
 x = xmeans(data=graph, initial_centers=start)
 x.process()
 c = x.get_clusters()
@@ -140,7 +140,7 @@ for hashtag_id, index in hashtag_indicies.items():
     hashtag = search.fetchone()[0]
     hashtag_ids[hashtag_id] = hashtag
     hashtag_clusters[hashtag] = l[index]
-
+'''
 
 
 ancur = Database.get_Cur()

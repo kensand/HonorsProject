@@ -2,6 +2,8 @@ from Library import Database
 from sklearn.cluster import KMeans
 import array
 import numpy as np
+from mcl import mcl_clustering
+import networkx
 import gc
 from pyclustering.cluster.xmeans import xmeans
 
@@ -12,8 +14,62 @@ try:
 except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
+filename = 'smalltest'
 graph_size = 500
 min_user_hashtags = 2
+create_new_graph = True
+
+
+def loadGraph():
+    cur = Database.get_Cur()
+    output = 'UserCoocurence'
+    cur.execute("""SELECT index, count, hashtag, edges FROM """ + output + """ ORDER BY index ASC""")
+    labels = {}
+    from collections import Counter
+    counter = Counter()
+    graph = []
+    for i in cur:
+        index = i[0]
+        count = i[1]
+        hashtag = i[2]
+        edges = i[3]
+        graph.append(edges)
+        counter[hashtag] = count
+        labels[index] = hashtag
+    return labels, counter, graph
+
+
+import time
+def saveGraph(graph, labels, counter):
+    start = time.localtime()
+    count = 0
+    commit = True
+    print 'Started at: ' + time.strftime("%b %d %Y %H:%M:%S", start)
+    size = len(graph)
+    output = 'UserCoocurence'
+    cur = Database.get_Cur()
+    cur.execute("""DROP TABLE IF EXISTS """ + output)
+    cur.execute("""CREATE TABLE IF NOT EXISTS """ + output + """ (index int, count int, hashtag varchar(255), edges FLOAT[])""")
+    buff = []
+    for rownum, row in enumerate(graph):
+        buff.append([rownum, counter[labels[rownum]], labels[rownum], row.tolist()])
+        if len(buff) > 1000:
+            insert = 'INSERT INTO ' + output + ' (index, count, hashtag, edges) VALUES ' + ','.join(cur.mogrify('(%s, %s, %s, %s)', x) for x in buff)
+            cur.execute(insert)
+            del buff
+            buff = []
+        count += 1
+        if count % 10000 == 1:  # int(incur.rowcount / 100) == 0:
+            fin = ((time.mktime(time.localtime()) - time.mktime(start)) / size) * size
+            fin += time.mktime(start)
+            print str(count) + '/' + str(size) + " Est. completion time: " + time.strftime(
+                "%b %d %Y %H:%M:%S", time.localtime(fin))
+            if commit:
+                cur.execute("""COMMIT""")
+    insert = 'INSERT INTO ' + output + ' (index, count, hashtag, edges) VALUES ' + ','.join(
+        cur.mogrify('(%s, %s, %s, %s)', x) for x in buff)
+    cur.execute(insert)
+    cur.execute("""COMMIT""")
 
 def getGraph(graph_size, min_user_hashtags):
     userToTweets = {}
@@ -27,7 +83,7 @@ def getGraph(graph_size, min_user_hashtags):
 
     cur = Database.get_Cur()
 
-    q1 = """SELECT user_id, id from tweets WHERE issue='abortion'"""
+    q1 = """SELECT user_id, id from tweets WHERE (issue='abortion')"""
     q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from tweets WHERE issue='abortion')"""
     q3 = """SELECT id, hashtag from hashtags"""
 
@@ -87,6 +143,9 @@ def getGraph(graph_size, min_user_hashtags):
                 hashtag_counter[hashtag] += 1
             userHashtags[user] = hashtags
 
+
+    graph_size = len(hashtag_counter.keys())
+
     # give each hashtag a index
     # and the reverse
     indicies_hashtags = {}
@@ -101,14 +160,18 @@ def getGraph(graph_size, min_user_hashtags):
 
 
     #increase the edge values for each coocurence of a hashtag by a user
+    count = 0
+    total = len(userHashtags.items())
     for i in userHashtags.items():
+        print str(count) + '/' + str(total)
+        count += 1
         user = i[0]
         hashtags = i[1]
         for hashtag1 in hashtags:
             if hashtag1 in hashtag_indicies:
                 for hashtag2 in hashtags:
-                    if hashtag2 in hashtag_indicies and hashtag2 != hashtag1:
-                        graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] +=1
+                    if hashtag2 in hashtag_indicies: # and hashtag2 != hashtag1:
+                        graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += 1
 
     #print graph.tolist()
 
@@ -118,15 +181,61 @@ def getGraph(graph_size, min_user_hashtags):
 
 
 
+def removeOverlap(clusters):
+    cluster_labels = {}
+    for i in clusters.items():
+        clusternum = i[0]
+        hash_list = i[1]
+        for hash in hash_list:
+            if hash in cluster_labels and clusternum not in cluster_labels[hash]:
+                cluster_labels[hash].append(clusternum)
+            else:
+                cluster_labels[hash] = [clusternum]
+    for hash, clusters in cluster_labels.items():
+        cluster_labels[hash] = clusters.sort()
+
+    out = {}
+    cluster_count = len(cluster_labels)
+    for clusternum, hash_list in clusters.items():
+        for hash1 in hash_list:
+            if len(cluster_labels[hash1]) > 1:
+                matchinghashes = []
+                for hash2 in hash_list:
+                    if hash2 != hash1 and cluster_labels[hash1] == cluster_labels[hash2]:
+                        if hash1 not in matchinghashes:
+                            matchinghashes.append(hash1)
+                        if hash2 not in matchinghashes:
+                            matchinghashes.append(hash2)
+                if len(matchinghashes) > 1:
+                    #not sure how this will work
+                    exit(0)
+
+
 def getClusters(graph):
-    from mcl import mcl_clustering
-    import networkx as nx
+
 
     print np.matrix(graph).shape
 
-    inm = nx.from_numpy_matrix(np.matrix(graph))
+    inm = networkx.from_numpy_matrix(np.matrix(graph))
 
-    m, cluster = mcl_clustering.networkx_mcl(inm)
+    m, cluster = mcl_clustering.networkx_mcl(G=inm, expand_factor = 10, inflate_factor = 2, max_loop = 100 , mult_factor = 1 ) # (G=inm, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1 )
+    '''
+
+    start = [[0] * len(graph)]
+
+    x = xmeans(data=graph, initial_centers=start)
+    x.process()
+    c = x.get_clusters()
+    print c
+    num_clusters = len(c)
+    l = {}
+    for i in range(len(c)):
+        l[i] = []
+        for j in range(len(c[i])):
+            l[i].append(c[i][j])
+    cluster = l
+    '''
+
 
     print cluster
     return cluster
@@ -134,9 +243,14 @@ def getClusters(graph):
 
 
 #main
-
-labels, counter, graph = getGraph(graph_size, min_user_hashtags)
+if create_new_graph:
+    labels, counter, graph = getGraph(graph_size, min_user_hashtags)
+    saveGraph(graph, labels, counter)
+else:
+    labels, counter, graph = loadGraph()
 clusters = getClusters(graph)
+
+#clusters = removeOverlap(clusters)
 
 print 'printing'
 
@@ -153,22 +267,23 @@ outstrlist = []
 for label, hashtags in clusters.items():
     outstrlist.append("Cluster " + str(label) + ", (size = " + str(len(hashtags)) + "): ")
     outstrlist.append([labels[hashtag] for hashtag in hashtags])
+    for hashtag in hashtags:
+        notable_hashtags_clusters[labels[hashtag]] = label
 
-
-    for i in annotated_hashtags:
-        if i[1] in notable_hashtags_clusters:
-            if str(i[2]) == 'l':
-                clusterl[notable_hashtags_clusters[i[1]]] += 1
-            elif str(i[2]) == 'c':
-                clusterc[notable_hashtags_clusters[i[1]]] += 1
-            outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): ' + str(notable_hashtags_clusters[i[1]]))
-        else:
-            outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): Not found')
+for i in annotated_hashtags:
+    if i[1] in notable_hashtags_clusters:
+        if str(i[2]) == 'l':
+            clusterl[notable_hashtags_clusters[i[1]]] += 1
+        elif str(i[2]) == 'c':
+            clusterc[notable_hashtags_clusters[i[1]]] += 1
+        outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): ' + str(notable_hashtags_clusters[i[1]]))
+    else:
+        outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): Not found')
 
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
 
-f = open('UserCoocurenceResults2', 'w')
+f = open(filename, 'w')
 
 f.writelines('\n'.join([str(x) for x in outstrlist]))
 f.close()
@@ -207,7 +322,7 @@ top = [x for x,y in counter.most_common(lim)]
 
 for clusternum, hashtag_indicies in clusters.items():
     patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
-    plt.legend(handles=[patch])
+    plt.legend(handles=[patch], loc=clusternum)
     for j in hashtag_indicies:
         mark = 'o'
         l = ''
@@ -228,5 +343,5 @@ for clusternum, hashtag_indicies in clusters.items():
 
 #print cents
 
-plt.savefig('User_hashtag_clusters2.png')
+plt.savefig(filename + '.png')
 
