@@ -11,14 +11,18 @@ try:
 except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
-filename = 'UserCooccurenceTrain'
+filename = 'UserTweetCooccurenceTrain'
 graph_size = 500
 min_user_hashtags = 2
+min_cluster_percent = .01
+user_weight = 1
+tweet_weight = 10
+
 create_new_graph = False  #
 create_new_graph = True
 
-output = 'TestUserCoocurence'
-output = 'TrainUserCoocurence'
+output = 'TestUserTweetCoocurence'
+output = 'TrainUserTweetCoocurence'
 
 
 def loadGraph(input):
@@ -78,7 +82,7 @@ def saveGraph(graph, labels, counter, output):
     cur.execute("""COMMIT""")
 
 
-def getGraph(graph_size, min_user_hashtags):
+def getGraph(graph_size, min_user_hashtags, user_weight, tweet_weight):
     userToTweets = {}
     tweetToHashtagIds = {}
     hashtagIdToHashtag = {}
@@ -181,7 +185,18 @@ def getGraph(graph_size, min_user_hashtags):
             if hashtag1 in hashtag_indicies:
                 for hashtag2 in hashtags:
                     if hashtag2 in hashtag_indicies:  # and hashtag2 != hashtag1:
-                        graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += 1
+                        graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += user_weight
+
+    for tweet, hashtag_ids in tweetToHashtagIds.items():
+        for hashtag_id1 in hashtag_ids:
+            if hashtag_id1 in hashtagIdToHashtag:
+                hashtag1 = hashtagIdToHashtag[hashtag_id1]
+                if hashtag1 in hashtag_indicies:
+                    for hashtag_id2 in hashtag_ids:
+                        if hashtag_id2 in hashtagIdToHashtag:
+                            hashtag2 = hashtagIdToHashtag[hashtag_id2]
+                            if hashtag2 in hashtag_indicies and hashtag2 != hashtag1:
+                                graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += tweet_weight
 
     # print graph.tolist()
 
@@ -320,7 +335,7 @@ def getClusters(graph):
 
 # main
 if create_new_graph:
-    labels, counter, graph = getGraph(graph_size, min_user_hashtags)
+    labels, counter, graph = getGraph(graph_size, min_user_hashtags, user_weight=user_weight, tweet_weight=tweet_weight)
     saveGraph(graph, labels, counter, output)
 else:
     labels, counter, graph = loadGraph(input=output)
@@ -394,17 +409,23 @@ low_dims = tsne.fit_transform(m)
 
 color_num = numclusters
 
-color_num = 2
+color_num = 1
+
+
+color_map={}
+
 for clusternum, hashtag_indicies in clusters.items():
-    if len(hashtag_indicies) >= len(graph) / 20:
+    if len(hashtag_indicies) >= len(graph) * min_cluster_percent:
+        color_map[clusternum] = color_num
         color_num += 1
 
+color_map[-1] = 0
 
 
 x = np.arange(color_num)
 ys = [i + x + (i * x) ** 2 for i in range(color_num)]
 colors = cm.rainbow(np.linspace(0, 1, len(ys)))
-
+#print colors
 plt.figure(figsize=(18, 18))  # in inches
 lim = 200
 
@@ -413,7 +434,7 @@ top = [x for x, y in counter.most_common(lim)]
 legends = {}
 
 for clusternum, hashtag_indicies in clusters.items():
-    if len(hashtag_indicies) < len(graph) / 20:
+    if len(hashtag_indicies) < len(graph) * min_cluster_percent:
         clusternum = -1
     #if clusternum < 10:
         #patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
@@ -423,7 +444,7 @@ for clusternum, hashtag_indicies in clusters.items():
         l = ''
         # print hashtag_clusters[hashtag_ids[i]]
 
-        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum + 1], marker=mark)
+        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[color_map[clusternum]], marker=mark)
         if clusternum + 1 not in legends:
             legends[clusternum + 1] = z
         if lim > 0 and labels[j] in top:

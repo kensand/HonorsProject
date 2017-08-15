@@ -1,6 +1,6 @@
 import array
 import gc
-
+from collections import Counter
 import numpy as np
 from sklearn.cluster import KMeans
 
@@ -16,11 +16,11 @@ except ImportError:
 # get the tweets hashtag relationships if the hashtag occurs with another hashtag in the same tweet atleast once.
 
 cur = Database.get_Cur()
-query = "SELECT tweet_id, hashtag_id, count(tweet_id) FROM tweets_hashtags WHERE tweet_id in (SELECT id from tweets where issue='abortion') GROUP BY tweet_id,hashtag_id HAVING COUNT (tweet_id) > 1"
+query = "SELECT tweet_id, hashtag_id, count(tweet_id) FROM tweets_hashtags WHERE tweet_id in (SELECT id from train) GROUP BY tweet_id,hashtag_id HAVING COUNT (tweet_id) > 1"
 cur.execute(query)
 
 # create a list of hashtags (given indicies) for each unique tweet id
-
+counter = Counter()
 tweetshashtags = {}
 count = 0
 hashtag_indicies = {}
@@ -31,6 +31,7 @@ for row in cur:
         hashtag_indicies[hashtag_id] = count
         count += 1
     if hashtag_id in hashtag_indicies:
+        counter[hashtag_indicies[hashtag_id]] += 1
         if tweet_id in tweetshashtags:
             tweetshashtags[tweet_id].append(hashtag_indicies[hashtag_id])
         else:
@@ -41,7 +42,7 @@ graph = []
 print count
 for i in range(count):
     arr = array.array('H')
-    arr.append(np.int16(0))
+    arr.append(0)#np.int16(0))
     graph.append(arr * count)
     # print type(graph[i][0])
 max = 0
@@ -50,7 +51,7 @@ for tweet_id, hashtags in tweetshashtags.items():
         for hashtag1 in hashtags:
             for hashtag2 in hashtags:
                 if hashtag1 != hashtag2:  # actually, might be ok if they are the same - just results in coutn of times used
-                    graph[hashtag1][hashtag2] = np.uint16(1)
+                    graph[hashtag1][hashtag2] += 1#np.uint16(1)
                     if max < graph[hashtag1][hashtag2]:
                         max = graph[hashtag1][hashtag2]
                         # print type(graph[hashtag1][hashtag2])
@@ -64,8 +65,24 @@ gc.collect()
 # def removeUnlinked(graph):
 #    for x,y in
 
+from sklearn.cluster import AffinityPropagation
+
+a = AffinityPropagation(affinity='precomputed')
+predictions = a.fit_predict(graph)
+cluster = {}
+for index, i in enumerate(predictions):
+    if i in cluster:
+        cluster[i].append(index)
+    else:
+        cluster[i] = [index]
+num_clusters=len(cluster)
+l = [0 for x in range(len(graph))]
+for cluster_ind in cluster.keys():
+    for x in cluster[cluster_ind]:
+        l[x] = cluster_ind
 
 
+'''
 cluster_num = 20
 print "starting clustering"
 km = KMeans(n_clusters=cluster_num, random_state=0)
@@ -74,6 +91,7 @@ print "fitting"
 km.fit(graph)
 print "getting labels"
 l = km.labels_.tolist()
+'''
 '''
 
 start = [[0] * len(graph)]
@@ -139,10 +157,115 @@ for i in annotated_hashtags:
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
 
-f = open('CoocurenceResults', 'w')
+f = open('CoocurenceResultsTrain', 'w')
 
 f.writelines('\n'.join([str(x) for x in outstrlist]))
 f.close()
+
+
+
+
+
+
+def affinityToAdjacency(graph):
+    size = len(graph)
+    ret = np.zeros((size, size))
+
+    for x in range(size):
+        vertex = graph[x]
+        s = sum(vertex)
+        for y in range(size):
+            ret[x][y] = vertex[y] / s
+    return ret
+
+
+
+try:
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+    import matplotlib.patches as mpatches
+except ImportError:
+    print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
+
+print "Graphing"
+
+# reduce dimensionality
+m = affinityToAdjacency(graph)
+tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=50000)
+low_dims = tsne.fit_transform(m)
+
+color_num = num_clusters
+
+color_num = 2
+for clusternum, hashtag_indicies in clusters.items():
+    if len(hashtag_indicies) >= len(graph) / 20:
+        color_num += 1
+
+
+
+x = np.arange(color_num)
+ys = [i + x + (i * x) ** 2 for i in range(color_num)]
+colors = cm.rainbow(np.linspace(0, 1, len(ys)))
+
+plt.figure(figsize=(18, 18))  # in inches
+lim = 200
+
+top = [x for x, y in counter.most_common(lim)]
+
+legends = {}
+
+for clusternum, hashtag_indicies in clusters.items():
+    if len(hashtag_indicies) < len(graph) / 20:
+        clusternum = -1
+    #if clusternum < 10:
+        #patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
+        #plt.legend(handles=[patch], loc=clusternum + 1)
+    for j in hashtag_indicies:
+        mark = 'o'
+        l = ''
+        # print hashtag_clusters[hashtag_ids[i]]
+
+        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum + 1], marker=mark)
+        if clusternum + 1 not in legends:
+            legends[clusternum + 1] = z
+        if lim > 0 and labels[j] in top:
+            l = labels[j].decode('UTF-8', 'replace').encode('ascii', 'replace')
+            lim -= 1
+
+        # l = ''
+        plt.annotate(l,
+                     xy=(low_dims[j][0], low_dims[j][1]),
+                     xytext=(5, 2),
+                     textcoords='offset points',
+                     ha='right',
+                     va='bottom')
+
+legend_labels = ["Outlier Cluster"] + ['Cluster ' + str(x) for x in legends.keys()]
+plt.legend(tuple(legends.values()), tuple(legend_labels), scatterpoints=1, loc='lower left', ncol=3, fontsize=8)
+# print cents
+
+plt.savefig(filename + '.png')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exit(0)
 
 m = graph
 tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=50000)
@@ -176,4 +299,4 @@ for i, j in hashtag_indicies.items():
 
 # print cents
 
-plt.savefig('clusters.png')
+plt.savefig('CoocurenceResultsTrain.png')

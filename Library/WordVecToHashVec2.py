@@ -116,6 +116,7 @@ def WordVecToHashVec(
     import time
     start = time.localtime()
     #go through all uses of each hashtag
+    hash_word_embs = {}
     for row in hashtag_tweet_cur:
         tweet_id=row[0]
         hash_id=row[1]
@@ -135,6 +136,9 @@ def WordVecToHashVec(
             else:
                 hash_uses[hash_id] += 1
 
+            if hash_id not in hash_word_embs:
+                hash_word_embs[hash_id] = {}
+
             tweet_emb = [0]*Database.embedding_length
             for word in saved_tweets[tweet_id]:
                 if word not in word_embs:
@@ -148,13 +152,14 @@ def WordVecToHashVec(
                 #calculate the final word embedding by taking the specificity of the word in regards to the hashtag into account
                 if word_uses[word] > 0:
                     final_word_emb = Util.scalar_vec_mult(total_word_count * hash_counts[hash_id][word] / word_uses[word], word_embs[word])
+                    hash_word_embs[hash_id][word] = final_word_emb
 
                     #print final_word_emb
                     #this is where we combine the words in the tweets
-                    tweet_emb = Util.sum_vec(tweet_emb, final_word_emb)
+                    #tweet_emb = Util.sum_vec(tweet_emb, final_word_emb)
             #print tweet_emb
             #this is where each tweet is added to the hashtag embedding
-            hash_embs[hash_id] = Util.sum_vec(hash_embs[hash_id], Util.unitize(tweet_emb))
+            #hash_embs[hash_id] = Util.sum_vec(hash_embs[hash_id], Util.unitize(tweet_emb))
 
         #timer
         if hashtag_tweet_cur.rownumber % 1000 == 10:
@@ -162,6 +167,11 @@ def WordVecToHashVec(
             fin += time.mktime(start)
             print str(hashtag_tweet_cur.rownumber) + '/' + str(hashtag_tweet_cur.rowcount) + ". Est. completion time: " + time.strftime(
                 "%b %d %Y %H:%M:%S", time.localtime(fin))
+
+    for hash, word_embs in hash_word_embs.items():
+        for word, emb in word_embs.items():
+            hash_embs[hash_id] = Util.sum_vec(hash_embs[hash_id], Util.unitize(emb)) #multiply unitized embedding by hash_counts[hash][word]?
+
 
     outcur = conn.cursor()
     outcur.execute("""TRUNCATE """ + output)

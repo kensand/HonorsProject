@@ -11,14 +11,14 @@ try:
 except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
-filename = 'UserCooccurenceTrain'
+filename = 'CooccurenceTest'
 graph_size = 500
 min_user_hashtags = 2
 create_new_graph = False  #
 create_new_graph = True
 
-output = 'TestUserCoocurence'
-output = 'TrainUserCoocurence'
+output = 'TestCoocurence'
+#output = 'TrainCoocurence'
 
 
 def loadGraph(input):
@@ -93,9 +93,9 @@ def getGraph(graph_size, min_user_hashtags):
     q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from train)"""
     q3 = """SELECT id, hashtag from hashtags"""
 
-    #q1 = """SELECT user_id, id from test"""
-    #q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
-    #q3 = """SELECT id, hashtag from hashtags"""
+    q1 = """SELECT user_id, id from test"""
+    q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
+    q3 = """SELECT id, hashtag from hashtags"""
 
     # get the tweets made by each user in abortion topic
     cur.execute(q1)
@@ -128,34 +128,19 @@ def getGraph(graph_size, min_user_hashtags):
     from collections import Counter
 
     hashtag_counter = Counter()
-    # for each user
-    for user in userToTweets.keys():
-        # start a list of each hashtag occurence from that user
-        hashtags = []
-        # for each tweet by that user
-        for tweet in userToTweets[user]:
-            # for each hashtag in that tweet
-            if tweet in tweetToHashtagIds:
-                for hashtag_id in tweetToHashtagIds[tweet]:
-                    if hashtagIdToHashtag[hashtag_id] not in hashtags:
-                        # add it to the list of hashtags for the user
-                        hashtags.append(hashtagIdToHashtag[hashtag_id])
 
-        # check that there are more than the minimum number of hashtags per user -
-        # if there is only 1 hashtag, there are no coocurences with other hashtags
-        # also count the number of occurences of each hashtag
-        if len(hashtags) >= min_user_hashtags:
-            for hashtag in hashtags:
-                hashtag_counter[hashtag] += 1
-            userHashtags[user] = hashtags
+    for tweet in tweetToHashtagIds.keys():
+        for hashtag_id in tweetToHashtagIds[tweet]:
+            hashtag_counter[hashtagIdToHashtag[hashtag_id]] += 1
 
     counts = hashtag_counter.values()
 
     standard_dev = np.std(counts)
     avg = np.average(counts)
     d = np.floor(avg / standard_dev)
-    graph_size = len([x for x in hashtag_counter.values() if x > (avg - (d) * standard_dev) ]) #x > 3 or
-    # graph_size = len(hashtag_counter.keys())
+    graph_size = len([x for x in hashtag_counter.values() if x > (avg - (d) * standard_dev)])  # x > 3 or
+
+    graph = np.zeros((graph_size, graph_size))
 
     # give each hashtag a index
     # and the reverse
@@ -165,25 +150,16 @@ def getGraph(graph_size, min_user_hashtags):
         hashtag_indicies[j[0]] = i
         indicies_hashtags[i] = j[0]
 
-    # create a graph full of 0s
 
-    graph = np.zeros((graph_size, graph_size))
+    for tweet in tweetToHashtagIds.keys():
+        for hashtag1 in tweetToHashtagIds[tweet]:
+            h1 = hashtagIdToHashtag[hashtag1]
+            for hashtag2 in tweetToHashtagIds[tweet]:
+                h2 = hashtagIdToHashtag[hashtag2]
+                if h1 in hashtag_indicies and h2 in hashtag_indicies:
+                    print h1 + ', ' + h2
+                    graph[hashtag_indicies[h1]][hashtag_indicies[h2]] += 1
 
-    # increase the edge values for each coocurence of a hashtag by a user
-    count = 0
-    total = len(userHashtags.items())
-    for i in userHashtags.items():
-        print str(count) + '/' + str(total)
-        count += 1
-        user = i[0]
-        hashtags = i[1]
-        for hashtag1 in hashtags:
-            if hashtag1 in hashtag_indicies:
-                for hashtag2 in hashtags:
-                    if hashtag2 in hashtag_indicies:  # and hashtag2 != hashtag1:
-                        graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += 1
-
-    # print graph.tolist()
 
     print 'graph constructed'
 
@@ -226,6 +202,8 @@ def affinityToAdjacency(graph):
     for x in range(size):
         vertex = graph[x]
         s = sum(vertex)
+        if s == 0:
+            s = 1
         for y in range(size):
             ret[x][y] = vertex[y] / s
     return ret
@@ -360,7 +338,7 @@ for i in annotated_hashtags:
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
 
-#outstrlist.append(str(affinityToAdjacency(graph).tolist()))
+outstrlist.append(str(graph.tolist()))
 
 f = open(filename, 'w')
 
@@ -394,10 +372,14 @@ low_dims = tsne.fit_transform(m)
 
 color_num = numclusters
 
-color_num = 2
+color_num = 1
+map_colors = {}
 for clusternum, hashtag_indicies in clusters.items():
     if len(hashtag_indicies) >= len(graph) / 20:
+        map_colors[clusternum] = color_num
         color_num += 1
+map_colors[-1] = 0
+
 
 
 
@@ -423,7 +405,7 @@ for clusternum, hashtag_indicies in clusters.items():
         l = ''
         # print hashtag_clusters[hashtag_ids[i]]
 
-        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum + 1], marker=mark)
+        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[map_colors[clusternum]], marker=mark)
         if clusternum + 1 not in legends:
             legends[clusternum + 1] = z
         if lim > 0 and labels[j] in top:
