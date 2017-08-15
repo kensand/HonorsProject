@@ -40,7 +40,7 @@ def get_Conn(dbname=Dbname, user=User, host=Host, password=Password):
 
 # function to return a cursor, whether from the default database, or with a given connection.
 def get_Cur(conn=False):
-    if conn == False:
+    if not conn:
         return get_Conn().cursor()
     return conn.cursor()
 

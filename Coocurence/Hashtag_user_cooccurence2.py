@@ -1,11 +1,8 @@
-from Library import Database
-from sklearn.cluster import KMeans
-import array
-import numpy as np
-from mcl import mcl_clustering
 import networkx
-import gc
-from pyclustering.cluster.xmeans import xmeans
+import numpy as np
+from Library import mcl
+
+from Library import Database
 
 try:
     from sklearn.manifold import TSNE
@@ -17,13 +14,16 @@ except ImportError:
 filename = 'smalltest'
 graph_size = 500
 min_user_hashtags = 2
+create_new_graph = False  #
 create_new_graph = True
 
+output = 'TestUserCoocurence'
 
-def loadGraph():
+
+def loadGraph(input):
     cur = Database.get_Cur()
-    output = 'UserCoocurence'
-    cur.execute("""SELECT index, count, hashtag, edges FROM """ + output + """ ORDER BY index ASC""")
+
+    cur.execute("""SELECT index, count, hashtag, edges FROM """ + input + """ ORDER BY index ASC""")
     labels = {}
     from collections import Counter
     counter = Counter()
@@ -33,6 +33,7 @@ def loadGraph():
         count = i[1]
         hashtag = i[2]
         edges = i[3]
+        edges[index] = count #includes affinity to itself
         graph.append(edges)
         counter[hashtag] = count
         labels[index] = hashtag
@@ -40,21 +41,25 @@ def loadGraph():
 
 
 import time
-def saveGraph(graph, labels, counter):
+
+
+def saveGraph(graph, labels, counter, output):
     start = time.localtime()
     count = 0
     commit = True
     print 'Started at: ' + time.strftime("%b %d %Y %H:%M:%S", start)
     size = len(graph)
-    output = 'UserCoocurence'
+
     cur = Database.get_Cur()
     cur.execute("""DROP TABLE IF EXISTS """ + output)
-    cur.execute("""CREATE TABLE IF NOT EXISTS """ + output + """ (index int, count int, hashtag varchar(255), edges FLOAT[])""")
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS """ + output + """ (index int, count int, hashtag varchar(255), edges FLOAT[])""")
     buff = []
     for rownum, row in enumerate(graph):
         buff.append([rownum, counter[labels[rownum]], labels[rownum], row.tolist()])
         if len(buff) > 1000:
-            insert = 'INSERT INTO ' + output + ' (index, count, hashtag, edges) VALUES ' + ','.join(cur.mogrify('(%s, %s, %s, %s)', x) for x in buff)
+            insert = 'INSERT INTO ' + output + ' (index, count, hashtag, edges) VALUES ' + ','.join(
+                cur.mogrify('(%s, %s, %s, %s)', x) for x in buff)
             cur.execute(insert)
             del buff
             buff = []
@@ -71,15 +76,11 @@ def saveGraph(graph, labels, counter):
     cur.execute(insert)
     cur.execute("""COMMIT""")
 
+
 def getGraph(graph_size, min_user_hashtags):
     userToTweets = {}
     tweetToHashtagIds = {}
     hashtagIdToHashtag = {}
-
-
-
-
-
 
     cur = Database.get_Cur()
 
@@ -87,6 +88,13 @@ def getGraph(graph_size, min_user_hashtags):
     q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from tweets WHERE issue='abortion')"""
     q3 = """SELECT id, hashtag from hashtags"""
 
+    q1 = """SELECT user_id, id from train"""
+    q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from train)"""
+    q3 = """SELECT id, hashtag from hashtags"""
+
+    q1 = """SELECT user_id, id from test"""
+    q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
+    q3 = """SELECT id, hashtag from hashtags"""
 
     # get the tweets made by each user in abortion topic
     cur.execute(q1)
@@ -106,21 +114,17 @@ def getGraph(graph_size, min_user_hashtags):
         else:
             tweetToHashtagIds[i[0]] = [i[1]]
 
-
     # get the dictionary of hashtag ids to hashtags
     cur.execute(q3)
 
     for i in cur:
-       hashtagIdToHashtag[i[0]] = i[1]
+        hashtagIdToHashtag[i[0]] = i[1]
 
-
-    #create a dictionary listing each use of a hashtag by a user
+    # create a dictionary listing each use of a hashtag by a user
 
     userHashtags = {}
 
-
     from collections import Counter
-
 
     hashtag_counter = Counter()
     # for each user
@@ -129,13 +133,14 @@ def getGraph(graph_size, min_user_hashtags):
         hashtags = []
         # for each tweet by that user
         for tweet in userToTweets[user]:
-            #for each hashtag in that tweet
+            # for each hashtag in that tweet
             if tweet in tweetToHashtagIds:
                 for hashtag_id in tweetToHashtagIds[tweet]:
-                    #add it to the list of hashtags for the user
-                    hashtags.append(hashtagIdToHashtag[hashtag_id])
+                    if hashtagIdToHashtag[hashtag_id] not in hashtags:
+                        # add it to the list of hashtags for the user
+                        hashtags.append(hashtagIdToHashtag[hashtag_id])
 
-        #check that there are more than the minimum number of hashtags per user -
+        # check that there are more than the minimum number of hashtags per user -
         # if there is only 1 hashtag, there are no coocurences with other hashtags
         # also count the number of occurences of each hashtag
         if len(hashtags) >= min_user_hashtags:
@@ -143,23 +148,27 @@ def getGraph(graph_size, min_user_hashtags):
                 hashtag_counter[hashtag] += 1
             userHashtags[user] = hashtags
 
+    counts = hashtag_counter.values()
 
-    graph_size = len(hashtag_counter.keys())
+    standard_dev = np.std(counts)
+    avg = np.average(counts)
+    d = np.floor(avg / standard_dev)
+    graph_size = len([x for x in hashtag_counter.values() if x > 3 or x > (avg - (d) * standard_dev) ])
+    # graph_size = len(hashtag_counter.keys())
 
     # give each hashtag a index
     # and the reverse
     indicies_hashtags = {}
     hashtag_indicies = {}
-    for i,j in enumerate(hashtag_counter.most_common(graph_size)):
+    for i, j in enumerate(hashtag_counter.most_common(graph_size)):
         hashtag_indicies[j[0]] = i
         indicies_hashtags[i] = j[0]
 
-    #create a graph full of 0s
+    # create a graph full of 0s
 
     graph = np.zeros((graph_size, graph_size))
 
-
-    #increase the edge values for each coocurence of a hashtag by a user
+    # increase the edge values for each coocurence of a hashtag by a user
     count = 0
     total = len(userHashtags.items())
     for i in userHashtags.items():
@@ -170,15 +179,14 @@ def getGraph(graph_size, min_user_hashtags):
         for hashtag1 in hashtags:
             if hashtag1 in hashtag_indicies:
                 for hashtag2 in hashtags:
-                    if hashtag2 in hashtag_indicies: # and hashtag2 != hashtag1:
+                    if hashtag2 in hashtag_indicies:  # and hashtag2 != hashtag1:
                         graph[hashtag_indicies[hashtag1]][hashtag_indicies[hashtag2]] += 1
 
-    #print graph.tolist()
+    # print graph.tolist()
 
     print 'graph constructed'
 
     return indicies_hashtags, hashtag_counter, graph
-
 
 
 def removeOverlap(clusters):
@@ -207,20 +215,37 @@ def removeOverlap(clusters):
                         if hash2 not in matchinghashes:
                             matchinghashes.append(hash2)
                 if len(matchinghashes) > 1:
-                    #not sure how this will work
+                    # not sure how this will work
                     exit(0)
 
+def affinityToAdjacency(graph):
+    size = len(graph)
+    ret = np.zeros((size, size))
+
+    for x in range(size):
+        vertex = graph[x]
+        s = sum(vertex)
+        for y in range(size):
+            ret[x][y] = vertex[y] / s
+    return ret
 
 def getClusters(graph):
 
-
     print np.matrix(graph).shape
 
-    inm = networkx.from_numpy_matrix(np.matrix(graph))
 
-    m, cluster = mcl_clustering.networkx_mcl(G=inm, expand_factor = 10, inflate_factor = 2, max_loop = 100 , mult_factor = 1 ) # (G=inm, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1 )
+    '''
+    adj = affinityToAdjacency(graph)
+
+    inm = networkx.from_numpy_matrix(np.matrix(adj))
+
+    m, cluster = mcl.networkx_mcl(G=inm, expand_factor=2, inflate_factor=1.9, max_loop=10,
+                                             mult_factor=1)  # (G=inm, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1 )
+    #inf=1.78?
     '''
 
+    '''
+    from pyclustering.cluster.xmeans import xmeans
     start = [[0] * len(graph)]
 
     x = xmeans(data=graph, initial_centers=start)
@@ -235,22 +260,72 @@ def getClusters(graph):
             l[i].append(c[i][j])
     cluster = l
     '''
+    '''
+    from sklearn.cluster import KMeans
+    k = KMeans(precompute_distances=)
+    '''
 
+    from sklearn.cluster import AffinityPropagation
+    a = AffinityPropagation()
+    predictions = a.fit_predict(graph)
+    cluster = {}
+    for index, i in enumerate(predictions):
+        if i in cluster:
+            cluster[i].append(index)
+        else:
+            cluster[i] = [index]
+
+
+
+
+    '''
+    from sklearn.cluster import SpectralClustering
+
+    s = SpectralClustering(n_clusters=8, affinity='precomputed')
+
+    delta = 0.1
+
+    adj_graph = affinityToAdjacency(graph)
+
+    predictions = s.fit_predict(adj_graph)
+    cluster = {}
+    for index, i in enumerate(predictions):
+        if i in cluster:
+            cluster[i].append(index)
+        else:
+            cluster[i] = [index]
+
+    '''
+
+    '''
+
+
+    from sklearn.cluster import DBSCAN
+
+    dbscan = DBSCAN(metric='precomputed', n_jobs=-1, eps = 10, min_samples=10, leaf_size=100)
+
+    predictions = dbscan.fit_predict(graph)
+    cluster = {}
+    for index, i in enumerate(predictions):
+        if i in cluster:
+            cluster[i].append(index)
+        else:
+            cluster[i] = [index]
+    '''
 
     print cluster
     return cluster
 
 
-
-#main
+# main
 if create_new_graph:
     labels, counter, graph = getGraph(graph_size, min_user_hashtags)
-    saveGraph(graph, labels, counter)
+    saveGraph(graph, labels, counter, output)
 else:
-    labels, counter, graph = loadGraph()
+    labels, counter, graph = loadGraph(input=output)
 clusters = getClusters(graph)
 
-#clusters = removeOverlap(clusters)
+# clusters = removeOverlap(clusters)
 
 print 'printing'
 
@@ -262,13 +337,14 @@ notable_hashtags = [i[1] for i in annotated_hashtags]
 notable_hashtags_clusters = {}
 
 clusterl = [0] * numclusters
-clusterc=[0] * numclusters
+clusterc = [0] * numclusters
 outstrlist = []
 for label, hashtags in clusters.items():
-    outstrlist.append("Cluster " + str(label) + ", (size = " + str(len(hashtags)) + "): ")
-    outstrlist.append([labels[hashtag] for hashtag in hashtags])
-    for hashtag in hashtags:
-        notable_hashtags_clusters[labels[hashtag]] = label
+    if True: #len(hashtags) > 2:
+        outstrlist.append("Cluster " + str(label) + ", (size = " + str(len(hashtags)) + "): ")
+        outstrlist.append([labels[hashtag] for hashtag in hashtags])
+        for hashtag in hashtags:
+            notable_hashtags_clusters[labels[hashtag]] = label
 
 for i in annotated_hashtags:
     if i[1] in notable_hashtags_clusters:
@@ -283,11 +359,22 @@ for i in annotated_hashtags:
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
 
+outstrlist.append(str(affinityToAdjacency(graph).tolist()))
+
 f = open(filename, 'w')
 
 f.writelines('\n'.join([str(x) for x in outstrlist]))
 f.close()
+exit(0)
 
+'''
+import matplotlib.pyplot as plt
+import networkx as nx
+G2 = nx.from_numpy_matrix(np.matrix(graph))
+nx.draw_circular(G2)
+plt.axis('equal')
+plt.show()
+'''
 
 try:
     from sklearn.manifold import TSNE
@@ -299,41 +386,40 @@ except ImportError:
 
 print "Graphing"
 
-#reduce dimensionality
+# reduce dimensionality
 m = graph
-tsne = TSNE(perplexity=30,  n_components=2, init='pca', n_iter=50000)
+tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=50000)
 low_dims = tsne.fit_transform(m)
-
-
 
 color_num = numclusters
 x = np.arange(color_num)
-ys = [i+x+(i*x)**2 for i in range(color_num)]
+ys = [i + x + (i * x) ** 2 for i in range(color_num)]
 colors = cm.rainbow(np.linspace(0, 1, len(ys)))
-
-
 
 plt.figure(figsize=(18, 18))  # in inches
 lim = 200
 
+top = [x for x, y in counter.most_common(lim)]
 
-
-top = [x for x,y in counter.most_common(lim)]
+legends = {}
 
 for clusternum, hashtag_indicies in clusters.items():
-    patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
-    plt.legend(handles=[patch], loc=clusternum)
+    if clusternum < 10:
+        patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
+        plt.legend(handles=[patch], loc=clusternum + 1)
     for j in hashtag_indicies:
         mark = 'o'
         l = ''
-        #print hashtag_clusters[hashtag_ids[i]]
-        plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum], marker=mark)
+        # print hashtag_clusters[hashtag_ids[i]]
+
+        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum], marker=mark)
+        if clusternum not in legends:
+            legends[clusternum] = z
         if lim > 0 and labels[j] in top:
             l = labels[j].decode('UTF-8', 'replace').encode('ascii', 'replace')
             lim -= 1
 
-
-        #l = ''
+        # l = ''
         plt.annotate(l,
                      xy=(low_dims[j][0], low_dims[j][1]),
                      xytext=(5, 2),
@@ -341,7 +427,7 @@ for clusternum, hashtag_indicies in clusters.items():
                      ha='right',
                      va='bottom')
 
-#print cents
+plt.legend(tuple(legends.values()), tuple(['Cluster ' + str(x) for x in legends.keys()]), scatterpoints=1, loc='lower left', ncol=3, fontsize=8)
+# print cents
 
 plt.savefig(filename + '.png')
-
