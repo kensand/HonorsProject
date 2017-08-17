@@ -82,21 +82,15 @@ def ClusterVisualize(folder='', schema='public'):
 
         cents = km.cluster_centers_
     else:
-        start = [[0] * len(graph)]
-
-        print graph
-        x = xmeans(data=graph.values(), initial_centers=start)
-        x.process()
-        c = x.get_clusters()
-
-        cents = x.get_centers()
-        print cents
-        #print cluster_lables //TODO FIX the cluster_labels to use dict with key of hashtag index
-        for i in range(len(c)):
-            for j in c[i]:
-                cluster_labels[j] = i
-
-        cluster_num = len(c)
+        from sklearn.cluster import AffinityPropagation
+        a = AffinityPropagation(affinity='precomputed')
+        predictions = a.fit_predict(graph)
+        cluster = {}
+        for index, i in enumerate(predictions):
+            if i in cluster:
+                cluster[i].append(index)
+            else:
+                cluster[i] = [index]
 
 
 
