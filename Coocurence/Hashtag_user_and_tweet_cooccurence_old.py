@@ -14,7 +14,7 @@ except ImportError:
 filename = 'UserTweetCooccurenceTrain'
 graph_size = 500
 min_user_hashtags = 2
-min_cluster_percent = .01
+min_cluster_percent = .025
 user_weight = 1
 tweet_weight = 10
 

@@ -2,7 +2,7 @@ import networkx
 import numpy as np
 from Library import mcl
 
-from Library import Database
+from Library import Database, Util
 
 try:
     from sklearn.manifold import TSNE
@@ -11,14 +11,28 @@ try:
 except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
-filename = 'UserCooccurenceTrain'
+
+test=False
+
+if test:
+    filename = 'UserCooccurenceTest'
+    output = 'TestUserCoocurence'
+
+else:
+    filename = 'UserCooccurenceTrain'
+    output = 'TrainUserCoocurence'
+
 graph_size = 500
-min_user_hashtags = 2
+min_user_hashtags = 4
+min_cluster_percent = .05
 create_new_graph = False  #
 create_new_graph = True
 
-output = 'TestUserCoocurence'
-output = 'TrainUserCoocurence'
+
+
+
+
+#
 
 
 def loadGraph(input):
@@ -57,7 +71,7 @@ def saveGraph(graph, labels, counter, output):
         """CREATE TABLE IF NOT EXISTS """ + output + """ (index int, count int, hashtag varchar(255), edges FLOAT[])""")
     buff = []
     for rownum, row in enumerate(graph):
-        buff.append([rownum, counter[labels[rownum]], labels[rownum], row.tolist()])
+        buff.append([rownum, counter[labels[rownum]], labels[rownum], row])
         if len(buff) > 1000:
             insert = 'INSERT INTO ' + output + ' (index, count, hashtag, edges) VALUES ' + ','.join(
                 cur.mogrify('(%s, %s, %s, %s)', x) for x in buff)
@@ -89,13 +103,16 @@ def getGraph(graph_size, min_user_hashtags):
     q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from tweets WHERE issue='abortion')"""
     q3 = """SELECT id, hashtag from hashtags"""
 
-    q1 = """SELECT user_id, id from train"""
-    q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from train)"""
-    q3 = """SELECT id, hashtag from hashtags"""
 
-    #q1 = """SELECT user_id, id from test"""
-    #q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
-    #q3 = """SELECT id, hashtag from hashtags"""
+
+    if test:
+        q1 = """SELECT user_id, id from test"""
+        q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
+        q3 = """SELECT id, hashtag from hashtags"""
+    else:
+        q1 = """SELECT user_id, id from train"""
+        q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from train)"""
+        q3 = """SELECT id, hashtag from hashtags"""
 
     # get the tweets made by each user in abortion topic
     cur.execute(q1)
@@ -238,9 +255,9 @@ def getClusters(graph):
     '''
     adj = affinityToAdjacency(graph)
 
-    inm = networkx.from_numpy_matrix(np.matrix(adj))
+    inm = networkx.from_numpy_matrix(np.matrix(graph))
 
-    m, cluster = mcl.networkx_mcl(G=inm, expand_factor=2, inflate_factor=1.9, max_loop=10,
+    m, cluster = mcl.networkx_mcl(G=inm, expand_factor=2, inflate_factor=2, max_loop=10,
                                              mult_factor=1)  # (G=inm, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1 )
     #inf=1.78?
     '''
@@ -265,9 +282,9 @@ def getClusters(graph):
     from sklearn.cluster import KMeans
     k = KMeans(precompute_distances=)
     '''
-
+    '''
     from sklearn.cluster import AffinityPropagation
-    a = AffinityPropagation(affinity='precomputed')
+    a = AffinityPropagation(affinity='precomputed', damping=0.5)
     predictions = a.fit_predict(graph)
     cluster = {}
     for index, i in enumerate(predictions):
@@ -276,7 +293,7 @@ def getClusters(graph):
         else:
             cluster[i] = [index]
 
-
+    '''
 
 
     '''
@@ -288,7 +305,7 @@ def getClusters(graph):
 
     adj_graph = affinityToAdjacency(graph)
 
-    predictions = s.fit_predict(adj_graph)
+    predictions = s.fit_predict(graph)
     cluster = {}
     for index, i in enumerate(predictions):
         if i in cluster:
@@ -296,8 +313,8 @@ def getClusters(graph):
         else:
             cluster[i] = [index]
 
-    '''
 
+    '''
     '''
 
 
@@ -321,6 +338,7 @@ def getClusters(graph):
 # main
 if create_new_graph:
     labels, counter, graph = getGraph(graph_size, min_user_hashtags)
+    labels, graph = Util.removeSubGraphs(labels, graph)
     saveGraph(graph, labels, counter, output)
 else:
     labels, counter, graph = loadGraph(input=output)
@@ -393,11 +411,14 @@ tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=50000)
 low_dims = tsne.fit_transform(m)
 
 color_num = numclusters
-
-color_num = 2
+color_map = {}
+color_num = 1
 for clusternum, hashtag_indicies in clusters.items():
-    if len(hashtag_indicies) >= len(graph) / 20:
+    if len(hashtag_indicies) >= len(graph) * min_cluster_percent:
+        color_map[clusternum] = color_num
         color_num += 1
+color_map[-1] = 0
+
 
 
 
@@ -413,7 +434,7 @@ top = [x for x, y in counter.most_common(lim)]
 legends = {}
 
 for clusternum, hashtag_indicies in clusters.items():
-    if len(hashtag_indicies) < len(graph) / 20:
+    if len(hashtag_indicies) < len(graph) * min_cluster_percent:
         clusternum = -1
     #if clusternum < 10:
         #patch = mpatches.Patch(color=colors[clusternum], label='Cluster ' + str(clusternum))
@@ -423,9 +444,9 @@ for clusternum, hashtag_indicies in clusters.items():
         l = ''
         # print hashtag_clusters[hashtag_ids[i]]
 
-        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[clusternum + 1], marker=mark)
-        if clusternum + 1 not in legends:
-            legends[clusternum + 1] = z
+        z = plt.scatter(low_dims[j][0], low_dims[j][1], color=colors[color_map[clusternum]], marker=mark)
+        if clusternum not in legends:
+            legends[clusternum] = z
         if lim > 0 and labels[j] in top:
             l = labels[j].decode('UTF-8', 'replace').encode('ascii', 'replace')
             lim -= 1
@@ -438,8 +459,16 @@ for clusternum, hashtag_indicies in clusters.items():
                      ha='right',
                      va='bottom')
 
-legend_labels = ["Outlier Cluster"] + ['Cluster ' + str(x) for x in legends.keys()]
-plt.legend(tuple(legends.values()), tuple(legend_labels), scatterpoints=1, loc='lower left', ncol=3, fontsize=8)
+legend_labels = {}
+for x in legends.keys():
+    if x == -1:
+        legend_labels[legends[x]] = "Outlier Cluster"
+    else:
+        legend_labels[legends[x]] = 'Cluster ' + str(x)
+
+#legend_labels = ["Outlier Cluster"] + ['Cluster ' + str(x) for x in legends.keys()]
+
+plt.legend(tuple(legend_labels.keys()), tuple(legend_labels.values()), scatterpoints=1, loc='lower left', ncol=3, fontsize=8)
 # print cents
 
 plt.savefig(filename + '.png')

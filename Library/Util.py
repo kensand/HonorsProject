@@ -3,6 +3,52 @@ import numpy
 from scipy import spatial
 
 
+def removeSubGraphs(labels, graph):
+    import networkx as nx
+    g = nx.Graph(graph)
+    d = list(nx.connected_component_subgraphs(g))
+
+    new_labels = {}
+    new_graph = []
+
+    index = 0
+    largest = max(d, key=len)
+    for v in largest:
+        new_labels[index] = labels[v]
+        new_graph.append(graph[v].tolist())
+        index += 1
+
+    remove = []
+    for v in labels.keys():
+        if int(v) not in largest:
+            remove.append(int(v))
+    print remove
+    remove.sort(key=int, reverse=True) #list in descending order so these indicies dont change as they are removed.
+    print remove
+    for col in remove:
+        for row_num in range(len(new_graph)):
+
+            row = new_graph[row_num]
+            row.pop(col)
+            new_graph[row_num] = row
+
+
+    return new_labels, new_graph
+
+
+
+def affinityToAdjacency(graph):
+    size = len(graph)
+    ret = numpy.zeros((size, size))
+
+    for x in range(size):
+        vertex = graph[x]
+        s = sum(vertex)
+        for y in range(size):
+            ret[x][y] = vertex[y] / s
+    return ret
+
+
 def unitize(vector):
     s = math.sqrt(sum([x*x for x in vector]))
     if s == 0.:
