@@ -27,6 +27,7 @@ runs = {'abortionweek1': """id IN (SELECT id from tweets WHERE created_at >= '20
 #runs= { 'abortionweek2': """id IN (SELECT id from tweets WHERE created_at >= '2016-07-01' and created_at < '2016-07-08' and issue='abortion')""", 'abortionweek3': """id IN (SELECT id from tweets WHERE created_at >= '2016-07-08' and created_at < '2016-07-15' and issue='abortion')""",}
 #runs = {'abortionall':'id IN (SELECT id from public.test)'}
 
+
 #FormatTweets.format_tweets(append=False, where=""" issue ='abortion'""", commit=True)
 
 #runs = {'abortionall': """id IN (SELECT id from tweets WHERE issue='abortion')"""}
