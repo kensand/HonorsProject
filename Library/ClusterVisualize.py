@@ -152,6 +152,9 @@ def ClusterVisualize(folder='', schema='public'):
 
     outstrlist.append("Prolife annotated hashtags: Cluster 0: " + str(clusterl[0]) + " Cluster 1: " + str(clusterl[1]))
     outstrlist.append("Prochoice annotated hashtags: Cluster 0: " + str(clusterc[0]) + " Cluster 1: " + str(clusterc[1]))
+    from sklearn.metrics.cluster import entropy
+    outstrlist.append("TOTAL ENTROPY = " + str(
+        (entropy(clusterl) * sum(clusterl) + entropy(clusterc) * sum(clusterc)) / (sum(clusterc) + sum(clusterl))))
 
 
     print "Compared clustering for annotated hashtags, proceeding to graph"

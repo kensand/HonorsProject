@@ -12,7 +12,7 @@ except ImportError:
     print("Please install sklearn, matplotlib, and scipy to visualize embeddings.")
 
 
-test=False
+test=True
 
 if test:
     filename = 'UserCooccurenceTest'
@@ -23,8 +23,8 @@ else:
     output = 'TrainUserCoocurence'
 
 graph_size = 500
-min_user_hashtags = 4
-min_cluster_percent = .05
+min_user_hashtags = 2
+min_cluster_percent = .02
 create_new_graph = False  #
 create_new_graph = True
 
@@ -104,7 +104,7 @@ def getGraph(graph_size, min_user_hashtags):
     q3 = """SELECT id, hashtag from hashtags"""
 
 
-
+    '''
     if test:
         q1 = """SELECT user_id, id from test"""
         q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from test)"""
@@ -113,7 +113,7 @@ def getGraph(graph_size, min_user_hashtags):
         q1 = """SELECT user_id, id from train"""
         q2 = """SELECT tweet_id, hashtag_id from tweets_hashtags WHERE tweet_id in (SELECT id from train)"""
         q3 = """SELECT id, hashtag from hashtags"""
-
+    '''
     # get the tweets made by each user in abortion topic
     cur.execute(q1)
 
@@ -250,6 +250,8 @@ def affinityToAdjacency(graph):
 def getClusters(graph):
 
     print np.matrix(graph).shape
+    m, cluster = mcl.mcl(M=np.array(graph), expand_factor=2, inflate_factor=2.5, max_loop=1000,
+                         mult_factor=1)  # (G=inm, expand_factor = 2, inflate_factor = 2, max_loop = 10 , mult_factor = 1 )
 
 
     '''
@@ -284,7 +286,7 @@ def getClusters(graph):
     '''
     '''
     from sklearn.cluster import AffinityPropagation
-    a = AffinityPropagation(affinity='precomputed', damping=0.5)
+    a = AffinityPropagation(affinity='precomputed', damping=0.9)
     predictions = a.fit_predict(graph)
     cluster = {}
     for index, i in enumerate(predictions):
@@ -292,8 +294,8 @@ def getClusters(graph):
             cluster[i].append(index)
         else:
             cluster[i] = [index]
-
     '''
+
 
 
     '''
@@ -350,7 +352,12 @@ print 'printing'
 
 numclusters = len(clusters.keys())
 ancur = Database.get_Cur()
-ancur.execute("SELECT id, hashtag, annotation FROM annotated_hashtags ORDER BY annotation DESC ")
+if test:
+    anq = "SELECT id, hashtag, annotation FROM test_annotated_hashtags ORDER BY annotation DESC "
+else:
+    anq = "SELECT id, hashtag, annotation FROM train_annotated_hashtags ORDER BY annotation DESC "
+
+ancur.execute(anq)
 annotated_hashtags = ancur.fetchall()
 notable_hashtags = [i[1] for i in annotated_hashtags]
 notable_hashtags_clusters = {}
@@ -375,8 +382,13 @@ for i in annotated_hashtags:
     else:
         outstrlist.append(str(i[1]) + '(' + str(i[2]) + '): Not found')
 
+
+from sklearn.metrics.cluster import entropy
 outstrlist.append("Prolife annotated hashtags: " + ", ".join([str(x) for x in clusterl]))
+outstrlist.append("Entropy = " + str(entropy(clusterl)))
 outstrlist.append("Prochoice annotated hashtags: " + ", ".join([str(x) for x in clusterc]))
+outstrlist.append("Entropy = " + str(entropy(clusterc)))
+outstrlist.append("TOTAL ENTROPY = "  + str((entropy(clusterl) * sum(clusterl) + entropy(clusterc) * sum(clusterc))/(sum(clusterc) + sum(clusterl))))
 
 #outstrlist.append(str(affinityToAdjacency(graph).tolist()))
 
